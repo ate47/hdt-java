@@ -42,14 +42,11 @@ import java.nio.file.Paths;
 import java.util.Date;
 import java.util.zip.GZIPInputStream;
 
-import org.rdfhdt.hdt.dictionary.Dictionary;
-import org.rdfhdt.hdt.dictionary.DictionaryFactory;
-import org.rdfhdt.hdt.dictionary.DictionaryPrivate;
-import org.rdfhdt.hdt.dictionary.TempDictionary;
-import org.rdfhdt.hdt.dictionary.impl.FourSectionDictionary;
-import org.rdfhdt.hdt.dictionary.impl.FourSectionDictionaryBig;
-import org.rdfhdt.hdt.dictionary.impl.FourSectionDictionaryCat;
-import org.rdfhdt.hdt.dictionary.impl.MultipleSectionDictionary;
+import org.rdfhdt.hdt.compact.bitmap.Bitmap;
+import org.rdfhdt.hdt.compact.bitmap.Bitmap64;
+import org.rdfhdt.hdt.compact.bitmap.ModifiableBitmap;
+import org.rdfhdt.hdt.dictionary.*;
+import org.rdfhdt.hdt.dictionary.impl.*;
 import org.rdfhdt.hdt.enums.ResultEstimationType;
 import org.rdfhdt.hdt.enums.TripleComponentRole;
 import org.rdfhdt.hdt.exceptions.IllegalFormatException;
@@ -69,15 +66,8 @@ import org.rdfhdt.hdt.options.ControlInfo;
 import org.rdfhdt.hdt.options.ControlInformation;
 import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.options.HDTSpecification;
-import org.rdfhdt.hdt.triples.IteratorTripleString;
-import org.rdfhdt.hdt.triples.TempTriples;
-import org.rdfhdt.hdt.triples.TripleID;
-import org.rdfhdt.hdt.triples.TripleString;
-import org.rdfhdt.hdt.triples.Triples;
-import org.rdfhdt.hdt.triples.TriplesFactory;
-import org.rdfhdt.hdt.triples.TriplesPrivate;
-import org.rdfhdt.hdt.triples.impl.BitmapTriplesCat;
-import org.rdfhdt.hdt.triples.impl.BitmapTriplesIteratorCat;
+import org.rdfhdt.hdt.triples.*;
+import org.rdfhdt.hdt.triples.impl.*;
 import org.rdfhdt.hdt.util.StopWatch;
 import org.rdfhdt.hdt.util.StringUtil;
 import org.rdfhdt.hdt.util.io.CountInputStream;
@@ -641,5 +631,64 @@ public class HDTImpl implements HDTPrivate {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	public void diff(HDT hdt1, HDT hdt2, ProgressListener listener) {
+		this.dictionary = (FourSectionDictionary) hdt1.getDictionary();
+		ModifiableBitmap bitmap = new Bitmap64(hdt1.getTriples().getNumberOfElements());
+		BitmapTriplesIteratorDiff iterator = new BitmapTriplesIteratorDiff(hdt1, hdt2, bitmap);
+		iterator.fillBitmap();
+		diffBit(getHDTFileName(), hdt1, bitmap, listener);
+	}
+
+	public void diffBit(String location, HDT hdt, Bitmap deleteBitmap, ProgressListener listener) {
+		//printTriples(hdt1.getTriples().searchAll());
+		IteratorTripleID hdtIterator = hdt.getTriples().searchAll();
+		BitmapTriplesIteratorDiffBit iter = new BitmapTriplesIteratorDiffBitImpl(hdt, deleteBitmap, hdtIterator);
+		//printTriples(iter);
+		iter.consume();
+		DictionaryDiff diff = new FourSectionDictionaryDiff(location);
+		diff.diff(hdt.getDictionary(), iter.getBitmaps(), listener);
+
+		try {
+			//map the generated dictionary
+			ControlInfo ci2 = new ControlInformation();
+			CountInputStream fis = new CountInputStream(new BufferedInputStream(new FileInputStream(location + "dictionary")));
+			DictionaryPrivate dictionary = DictionaryFactory.createDictionary(spec);
+			fis.mark(1024);
+			ci2.load(fis);
+			fis.reset();
+			dictionary.mapFromFile(fis, new File(location + "dictionary"), null);
+			this.dictionary = dictionary;
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		// map the triples based on the new dictionary
+		BitmapTriplesIteratorMapDiff mapIter = new BitmapTriplesIteratorMapDiff(hdt, deleteBitmap, diff, iter.getCount());
+		BitmapTriples triples = new BitmapTriples();
+		triples.load(mapIter, listener);
+		this.triples = triples;
+
+		try {
+			Files.delete(Paths.get(location + "predicate"));
+			Files.delete(Paths.get(location + "predicate" + "Types"));
+			Files.delete(Paths.get(location + "subject"));
+			Files.delete(Paths.get(location + "subject" + "Types"));
+			Files.delete(Paths.get(location + "object"));
+			Files.delete(Paths.get(location + "object" + "Types"));
+			Files.delete(Paths.get(location + "shared"));
+			Files.delete(Paths.get(location + "shared" + "Types"));
+			Files.delete(Paths.get(location + "back" + "Types"));
+			Files.delete(Paths.get(location + "back"));
+
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+
+		this.header = HeaderFactory.createHeader(spec);
+
+		this.populateHeaderStructure("http://the-qa-company.com/hdtDiff/");
 	}
 }
