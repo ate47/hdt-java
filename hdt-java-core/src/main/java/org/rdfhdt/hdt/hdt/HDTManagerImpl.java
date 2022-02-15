@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Iterator;
 
+import org.rdfhdt.hdt.compact.bitmap.Bitmap;
 import org.rdfhdt.hdt.enums.RDFNotation;
 import org.rdfhdt.hdt.exceptions.NotFoundException;
 import org.rdfhdt.hdt.exceptions.ParserException;
@@ -156,6 +157,23 @@ public class HDTManagerImpl extends HDTManager {
 		HDTImpl hdt = new HDTImpl(new HDTSpecification());
 		hdt.cat(location, hdt1, hdt2, listener);
 		System.out.println("HDT file joint in: "+st.stopAndShow());
+		return hdt;
+	}
+
+	@Override
+	public HDT doHDTDiff(String hdtFileName1, String hdtFileName2, HDTOptions hdtFormat, ProgressListener listener) throws IOException {
+		HDT hdt1 = doMapHDT(hdtFileName1, listener);
+		HDT hdt2 = doMapHDT(hdtFileName2, listener);
+		HDTImpl hdt = new HDTImpl(hdtFormat);
+		hdt.diff(hdt1, hdt2, listener);
+		return hdt;
+	}
+
+	@Override
+	protected HDT doHDTDiffBit(String location, String hdtFileName, Bitmap deleteBitmap, HDTOptions hdtFormat, ProgressListener listener) throws IOException {
+		HDT hdtOriginal = doMapHDT(hdtFileName, listener);
+		HDTImpl hdt = new HDTImpl(hdtFormat);
+		hdt.diffBit(location, hdtOriginal, deleteBitmap, listener);
 		return hdt;
 	}
 }
