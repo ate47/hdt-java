@@ -36,17 +36,40 @@ import org.rdfhdt.hdt.exceptions.IllegalFormatException;
  * @author mario.arias
  *
  */
-public class BitmapFactory {
-	
-	private BitmapFactory() {}
-	
-	public static final byte TYPE_BITMAP_PLAIN = 1;
-	
-	public static Bitmap createBitmap(String type) {
+public class BitmapFactoryImpl extends BitmapFactory {
+
+	@Override
+	protected Bitmap doCreateEmptyBitmap(long size) {
+		return EmptyBitmap.ofSize(size);
+	}
+
+	@Override
+	protected Bitmap doCreateBitmap(byte type) {
+		return doCreateModifiableBitmap(type);
+	}
+
+	@Override
+	protected Bitmap doCreateBitmap(String type) {
+		return doCreateModifiableBitmap(type);
+	}
+
+	@Override
+	protected Bitmap doCreateBitmap(InputStream input) throws IOException {
+		return doCreateModifiableBitmap(input);
+	}
+
+	@Override
+	protected ModifiableBitmap doCreateModifiableBitmap(byte type) {
 		return new Bitmap375();
 	}
-	
-	public static Bitmap createBitmap(InputStream input) throws IOException {
+
+	@Override
+	protected ModifiableBitmap doCreateModifiableBitmap(String type) {
+		return new Bitmap375();
+	}
+
+	@Override
+	protected ModifiableBitmap doCreateModifiableBitmap(InputStream input) throws IOException {
 		input.mark(1);
 		int value = input.read();
 		input.reset();
@@ -54,5 +77,10 @@ public class BitmapFactory {
 			return new Bitmap375();
 		}
 		throw new IllegalFormatException("Implementation not found for Bitmap with code "+value);
+	}
+
+	@Override
+	protected ModifiableBitmap doCreateMemoryRWModifiableBitmap(long size) {
+		return new Bitmap64(size);
 	}
 }
