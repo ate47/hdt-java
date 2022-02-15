@@ -50,7 +50,7 @@ import org.rdfhdt.hdt.util.io.IOUtil;
  * @author mario.arias
  *
  */
-public class Bitmap64 {
+public class Bitmap64 implements ModifiableBitmap {
 	
 	// Constants
 	protected final static int LOGW = 6;
@@ -123,6 +123,7 @@ public class Bitmap64 {
 		}
 	}
 
+	@Override
 	public boolean access(long bitIndex) {
 		if (bitIndex < 0)
             throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
@@ -134,15 +135,27 @@ public class Bitmap64 {
         
         return (words[wordIndex] & (1L << bitIndex)) != 0;
 	}
-	
+
+	@Override
+	public long rank1(long pos) {
+		throw new NotImplementedException("rank1");
+	}
+
+	@Override
+	public long rank0(long pos) {
+		throw new NotImplementedException("rank0");
+	}
+
 	/* (non-Javadoc)
 	 * @see hdt.compact.bitmap.ModifiableBitmap#append(boolean)
 	 */
+	@Override
 	public void append(boolean value) {
 		this.set(numbits++, value );
 	}
 	
-	public void set(long bitIndex, boolean value) {		
+	@Override
+	public void set(long bitIndex, boolean value) {
 		if (bitIndex < 0)
 			throw new IndexOutOfBoundsException("bitIndex < 0: " + bitIndex);
 
@@ -158,10 +171,12 @@ public class Bitmap64 {
 		this.numbits = Math.max(this.numbits, bitIndex+1);
 	}
 
+	@Override
 	public long selectPrev1(long start) {
 		throw new NotImplementedException();
 	}
 	
+	@Override
 	public long selectNext1(long fromIndex) {
 		if (fromIndex < 0)
 	        throw new IndexOutOfBoundsException("fromIndex < 0: " + fromIndex);
@@ -181,23 +196,51 @@ public class Bitmap64 {
 		}
 	}
 
+	@Override
+	public long select0(long n) {
+		throw new NotImplementedException("select0");
+	}
+
+	@Override
+	public long select1(long n) {
+		throw new NotImplementedException("select1");
+	}
+
 	public long getWord(int word) {
 		return words[word];
 	}
 	
+	@Override
 	public long getNumBits() {
 		return numbits;
 	}
-	
+
+	@Override
+	public long countOnes() {
+		long c = 0;
+		long word = wordIndex(numbits);
+		for (int index = 0; index <= word; index++) {
+			c += Long.bitCount(words[index]);
+		}
+		return c;
+	}
+
+	@Override
+	public long countZeros() {
+		return numbits - countOnes();
+	}
+
+	@Override
 	public long getSizeBytes() {
 		return numWords(numbits)*8;
 	}
 
+	@Override
 	public void save(OutputStream output, ProgressListener listener) throws IOException {
 		CRCOutputStream out = new CRCOutputStream(output, new CRC8());
 		
 		// Write Type and Numbits
-		out.write(BitmapFactory.TYPE_BITMAP_PLAIN);
+		out.write(BitmapFactoryImpl.TYPE_BITMAP_PLAIN);
 		VByte.encode(out, numbits);
 		
 		// Write CRC
@@ -219,13 +262,14 @@ public class Bitmap64 {
 		out.writeCRC();
 	}
 
+	@Override
 	@SuppressWarnings("resource")
 	public void load(InputStream input, ProgressListener listener) throws IOException {
 		CRCInputStream in = new CRCInputStream(input, new CRC8());
 		
 		// Read type and numbits
 		int type = in.read();
-		if(type!=BitmapFactory.TYPE_BITMAP_PLAIN) {
+		if(type!= BitmapFactoryImpl.TYPE_BITMAP_PLAIN) {
 			throw new IllegalArgumentException("Trying to read BitmapPlain on a section that is not BitmapPlain");
 		}
 		numbits = VByte.decode(in);
@@ -255,6 +299,12 @@ public class Bitmap64 {
 			throw new CRCException("CRC Error while reading Bitmap64 data.");
 		}
 	}
+
+	@Override
+	public String getType() {
+		return null;
+	}
+
 	/* (non-Javadoc)
 	 * @see java.lang.Object#toString()
 	 */
@@ -268,6 +318,6 @@ public class Bitmap64 {
 	}
 
 	public long getRealSizeBytes() {
-		return words.length*8;
+		return words.length*8L;
 	}
 }

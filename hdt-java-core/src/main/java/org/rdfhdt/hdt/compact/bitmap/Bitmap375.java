@@ -44,7 +44,7 @@ import java.io.OutputStream;
  *
  * @author mario.arias
  */
-public class Bitmap375 extends Bitmap64 implements ModifiableBitmap {
+public class Bitmap375 extends Bitmap64 {
     // Constants
     private static final int BLOCKS_PER_SUPER = 4;
 
