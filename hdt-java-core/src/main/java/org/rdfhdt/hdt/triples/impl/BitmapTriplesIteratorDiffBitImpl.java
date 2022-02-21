@@ -5,6 +5,7 @@ import org.rdfhdt.hdt.dictionary.FourSectionBitmap;
 import org.rdfhdt.hdt.dictionary.impl.FourSectionBitmapImpl;
 import org.rdfhdt.hdt.enums.ResultEstimationType;
 import org.rdfhdt.hdt.enums.TripleComponentOrder;
+import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.hdt.HDT;
 import org.rdfhdt.hdt.triples.BitmapTriplesIteratorDiffBit;
 import org.rdfhdt.hdt.triples.IteratorTripleID;
@@ -65,6 +66,11 @@ public class BitmapTriplesIteratorDiffBitImpl implements BitmapTriplesIteratorDi
     @Override
     public TripleComponentOrder getOrder() {
         return null;
+    }
+
+    @Override
+    public long getLastTriplePosition() {
+        throw new NotImplementedException();
     }
 
     @Override

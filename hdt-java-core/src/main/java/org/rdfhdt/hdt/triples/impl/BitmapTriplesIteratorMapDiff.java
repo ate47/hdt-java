@@ -6,6 +6,7 @@ import org.rdfhdt.hdt.dictionary.DictionaryDiff;
 import org.rdfhdt.hdt.dictionary.impl.utilCat.CatMapping;
 import org.rdfhdt.hdt.enums.ResultEstimationType;
 import org.rdfhdt.hdt.enums.TripleComponentOrder;
+import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.hdt.HDT;
 import org.rdfhdt.hdt.triples.IteratorTripleID;
 import org.rdfhdt.hdt.triples.TripleID;
@@ -83,6 +84,12 @@ public class BitmapTriplesIteratorMapDiff implements IteratorTripleID {
     public TripleComponentOrder getOrder() {
         return null;
     }
+
+    @Override
+    public long getLastTriplePosition() {
+        throw new NotImplementedException();
+    }
+
     @Override
     public boolean hasNext() {
         return count < dictionaryDiff.getMappingBack().getSize() || iterator.hasNext();

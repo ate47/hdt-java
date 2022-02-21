@@ -166,8 +166,8 @@ public class HDTManagerImpl extends HDTManager {
 
 	@Override
 	public HDT doHDTDiff(String hdtFileName1, String hdtFileName2, HDTOptions hdtFormat, ProgressListener listener) throws IOException {
-		HDT hdt1 = doMapHDT(hdtFileName1, listener);
-		HDT hdt2 = doMapHDT(hdtFileName2, listener);
+		HDT hdt1 = doMapHDT(hdtFileName1, listener, hdtFormat);
+		HDT hdt2 = doMapHDT(hdtFileName2, listener, hdtFormat);
 		HDTImpl hdt = new HDTImpl(hdtFormat);
 		hdt.diff(hdt1, hdt2, listener);
 		return hdt;
@@ -175,7 +175,7 @@ public class HDTManagerImpl extends HDTManager {
 
 	@Override
 	protected HDT doHDTDiffBit(String location, String hdtFileName, Bitmap deleteBitmap, HDTOptions hdtFormat, ProgressListener listener) throws IOException {
-		HDT hdtOriginal = doMapHDT(hdtFileName, listener);
+		HDT hdtOriginal = doMapHDT(hdtFileName, listener, hdtFormat);
 		HDTImpl hdt = new HDTImpl(hdtFormat);
 		hdt.diffBit(location, hdtOriginal, deleteBitmap, listener);
 		return hdt;

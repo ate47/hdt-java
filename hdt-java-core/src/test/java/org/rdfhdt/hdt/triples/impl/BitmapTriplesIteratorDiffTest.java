@@ -2,10 +2,14 @@ package org.rdfhdt.hdt.triples.impl;
 
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.rdfhdt.hdt.compact.bitmap.BitmapFactory;
 import org.rdfhdt.hdt.compact.bitmap.ModifiableBitmap;
+import org.rdfhdt.hdt.dictionary.DictionaryFactory;
 import org.rdfhdt.hdt.hdt.HDT;
 import org.rdfhdt.hdt.hdt.HDTManager;
+import org.rdfhdt.hdt.hdt.HDTVocabulary;
 import org.rdfhdt.hdt.hdt.writer.TripleWriterHDT;
 import org.rdfhdt.hdt.hdtCat.utils.TripleStringUtility;
 import org.rdfhdt.hdt.options.HDTOptions;
@@ -18,7 +22,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 
+@RunWith(Parameterized.class)
 public class BitmapTriplesIteratorDiffTest {
     /**
      * Return type for {@link #createTestHDT(File, File, HDTOptions, int, int, int, int, int)}
@@ -108,14 +115,23 @@ public class BitmapTriplesIteratorDiffTest {
             System.out.println(triple);
         }
     }
+    @Parameterized.Parameters(name = "{0}")
+    public static Collection<Object> genParam() {
+        return Arrays.asList(
+                HDTVocabulary.DICTIONARY_TYPE_FOUR_SECTION,
+                DictionaryFactory.DICTIONARY_TYPE_FOUR_SECTION_BIG,
+                DictionaryFactory.DICTIONARY_TYPE_MULTI_OBJECTS,
+                HDTVocabulary.DICTIONARY_TYPE_FOUR_PSFC_SECTION
+        );
+    }
+
     @Rule
     public TemporaryFolder tempDir = new TemporaryFolder();
-    private HDTSpecification spec;
+    final HDTSpecification spec;
 
-
-    @Before
-    public void setUp() throws Exception {
+    public BitmapTriplesIteratorDiffTest(String dictionaryType) {
         spec = new HDTSpecification();
+        spec.set("dictionary.type", dictionaryType);
     }
 
     @Test
