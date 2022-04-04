@@ -1,27 +1,32 @@
 package org.rdfhdt.hdt.hdt;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.Iterator;
-
 import org.rdfhdt.hdt.compact.bitmap.Bitmap;
 import org.rdfhdt.hdt.dictionary.impl.MultipleSectionDictionary;
+import org.rdfhdt.hdt.enums.CompressionType;
 import org.rdfhdt.hdt.enums.RDFNotation;
 import org.rdfhdt.hdt.exceptions.NotFoundException;
 import org.rdfhdt.hdt.exceptions.ParserException;
 import org.rdfhdt.hdt.hdt.impl.HDTImpl;
 import org.rdfhdt.hdt.hdt.impl.TempHDTImporterOnePass;
 import org.rdfhdt.hdt.hdt.impl.TempHDTImporterTwoPass;
+import org.rdfhdt.hdt.hdt.impl.TreeWorkerGenerateDisk;
 import org.rdfhdt.hdt.hdt.writer.TripleWriterHDT;
 import org.rdfhdt.hdt.header.HeaderUtil;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.options.HDTSpecification;
+import org.rdfhdt.hdt.rdf.RDFParserCallback;
+import org.rdfhdt.hdt.rdf.RDFParserFactory;
 import org.rdfhdt.hdt.rdf.TripleWriter;
 import org.rdfhdt.hdt.triples.TripleString;
 import org.rdfhdt.hdt.util.StopWatch;
+import org.rdfhdt.hdt.util.io.IOUtil;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Iterator;
 
 public class HDTManagerImpl extends HDTManager {
 
@@ -102,7 +107,7 @@ public class HDTManagerImpl extends HDTManager {
 		
 		// Create TempHDT
 		TempHDT modHdt = loader.loadFromRDF(spec, rdfFileName, baseURI, rdfNotation, listener);
-		
+
 		// Convert to HDT
 		HDTImpl hdt = new HDTImpl(spec); 
 		hdt.loadFromModifiableHDT(modHdt, listener);
@@ -143,6 +148,31 @@ public class HDTManagerImpl extends HDTManager {
 		modHdt.close();
 		
 		return hdt;
+	}
+
+	@Override
+	public HDT doGenerateHDTDisk(String rdfFileName, String baseURI, RDFNotation rdfNotation, CompressionType compressionType, HDTOptions hdtFormat, ProgressListener listener) throws IOException, ParserException {
+		// read this file as stream, do not compress to allow the compressionType to be different from the file extension
+		try (InputStream stream = IOUtil.getFileInputStream(rdfFileName, false)) {
+			return doGenerateHDTDisk(stream, baseURI, rdfNotation, compressionType, hdtFormat, listener);
+		}
+	}
+
+	@Override
+	public HDT doGenerateHDTDisk(InputStream fileStream, String baseURI, RDFNotation rdfNotation, CompressionType compressionType, HDTOptions hdtFormat, ProgressListener listener) throws IOException, ParserException {
+		// uncompress the stream if required
+		fileStream = IOUtil.asUncompressed(fileStream, compressionType);
+		// create a parser for this rdf stream
+		RDFParserCallback parser = RDFParserFactory.getParserCallback(rdfNotation);
+		// read the stream as triples
+		Iterator<TripleString> iterator = RDFParserFactory.readAsIterator(parser, fileStream, baseURI, rdfNotation);
+
+		return doGenerateHDTDisk(iterator, baseURI, hdtFormat, listener);
+	}
+
+	@Override
+	public HDT doGenerateHDTDisk(Iterator<TripleString> iterator, String baseURI, HDTOptions hdtFormat, ProgressListener listener) throws IOException, ParserException {
+		return TreeWorkerGenerateDisk.generateHDT(iterator, hdtFormat, listener);
 	}
 
 	@Override

@@ -45,6 +45,7 @@ import java.util.zip.GZIPInputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+import org.rdfhdt.hdt.enums.CompressionType;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.util.string.ByteStringUtil;
 
@@ -57,6 +58,10 @@ public class IOUtil {
 	private IOUtil() {}
 
 	public static InputStream getFileInputStream(String fileName) throws IOException {
+		return getFileInputStream(fileName, true);
+	}
+
+	public static InputStream getFileInputStream(String fileName, boolean uncompress) throws IOException {
 		InputStream input;
 		String name = fileName.toLowerCase();
 		if(name.startsWith("http:/") || name.startsWith("ftp:/")) {
@@ -70,12 +75,14 @@ public class IOUtil {
 			input = new BufferedInputStream(new FileInputStream(fileName));
 		}
 
-		if(name.endsWith(".gz")||name.endsWith(".tgz")) {
-			input = new GZIPInputStream(input);
-		} else if(name.endsWith("bz2") || name.endsWith("bz")) {
-			input = new BZip2CompressorInputStream(input, true);
-		} else if(name.endsWith("xz")) {
-			input = new XZCompressorInputStream(input, true);
+		if (uncompress) {
+			if (name.endsWith(".gz") || name.endsWith(".tgz")) {
+				input = new GZIPInputStream(input);
+			} else if (name.endsWith("bz2") || name.endsWith("bz")) {
+				input = new BZip2CompressorInputStream(input, true);
+			} else if (name.endsWith("xz")) {
+				input = new XZCompressorInputStream(input, true);
+			}
 		}
 		return input;
 	}
@@ -371,5 +378,19 @@ public class IOUtil {
 			output.close();
 		} catch (IOException e) {
 		}
+	}
+
+	public static InputStream asUncompressed(InputStream inputStream, CompressionType type) throws IOException {
+		switch (type) {
+			case GZIP:
+				return new GZIPInputStream(inputStream);
+			case BZIP:
+				return new BZip2CompressorInputStream(inputStream, true);
+			case XZ:
+				return new XZCompressorInputStream(inputStream, true);
+			case NONE:
+				return inputStream;
+		}
+		throw new IllegalArgumentException("CompressionType not yet implemented: " + type);
 	}
 }
