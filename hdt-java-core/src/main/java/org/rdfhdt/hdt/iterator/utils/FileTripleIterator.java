@@ -80,6 +80,24 @@ public class FileTripleIterator implements Iterator<TripleString> {
 	}
 
 	/**
+	 * force the iterator to create a new file after the next hasNext()
+	 */
+	public void forceNewFile() {
+		long estimation;
+		if (next != null) {
+			try {
+				estimation = next.asNtriple().toString().getBytes(DEFAULT_CHARSET).length;
+			} catch (IOException e) {
+				throw new RuntimeException("Can't estimate the size of the triple " + next, e);
+			}
+		} else {
+			estimation = 0;
+		}
+		currentSize = estimation;
+		stop = true;
+	}
+
+	/**
 	 * @return if we need to open a new file
 	 */
 	public boolean hasNewFile() {
