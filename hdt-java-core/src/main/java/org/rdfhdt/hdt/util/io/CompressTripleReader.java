@@ -13,6 +13,7 @@ import java.io.InputStream;
 
 /**
  * Class to read and map pre-mapped a triples file
+ *
  * @author Antoine Willerval
  */
 public class CompressTripleReader implements ExceptionIterator<TripleID, IOException> {
@@ -22,12 +23,14 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 	private final LongArrayDisk sMapper;
 	private final LongArrayDisk pMapper;
 	private final LongArrayDisk oMapper;
+	private final long shared;
 
-	public CompressTripleReader(InputStream stream, LongArrayDisk sMapper, LongArrayDisk pMapper, LongArrayDisk oMapper) {
+	public CompressTripleReader(InputStream stream, LongArrayDisk sMapper, LongArrayDisk pMapper, LongArrayDisk oMapper, long shared) {
 		this.stream = new CRCInputStream(stream, new CRC32());
 		this.sMapper = sMapper;
 		this.pMapper = pMapper;
 		this.oMapper = oMapper;
+		this.shared = shared;
 	}
 
 	@Override
@@ -65,11 +68,11 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 			end = true;
 			return true;
 		}
-		// map the triples to the end id
+		// map the triples to the end id, compute the shared with the end shared size
 		next.setAll(
-			sMapper.get(s),
-			pMapper.get(p),
-			oMapper.get(o)
+				CompressNodeWriter.computeSharedNode(sMapper.get(s), shared),
+				pMapper.get(p),
+				CompressNodeWriter.computeSharedNode(oMapper.get(o), shared)
 		);
 		read = true;
 		return false;

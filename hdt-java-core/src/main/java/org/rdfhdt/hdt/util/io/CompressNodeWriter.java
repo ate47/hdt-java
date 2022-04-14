@@ -19,6 +19,7 @@ import java.io.OutputStream;
 import java.util.List;
 
 public class CompressNodeWriter {
+	public static final long SHARED_MASK = 1L << 62;
 	/**
 	 * write a sorted list of indexed node
 	 * @param strings the nodes to write
@@ -138,6 +139,30 @@ public class CompressNodeWriter {
 		if(!in1.readCRCAndCheck() || !in2.readCRCAndCheck()) {
 			throw new CRCException("CRC Error while merging Section Plain Front Coding Header.");
 		}
+	}
+
+	/**
+	 * compute the shared-computed id from a shared-computable id
+	 * @param id the shared-computable id
+	 * @param sharedCount the count of shared elements
+	 * @return the shared-computed element
+	 */
+	public static long computeSharedNode(long id, long sharedCount) {
+		if ((id & SHARED_MASK) != 0) {
+			// shared element
+			return id;
+		}
+		// not shared
+		return id + sharedCount;
+	}
+
+	/**
+	 * convert this id to a shared-computable element
+	 * @param id the id
+	 * @return shared-computable element
+	 */
+	public static long asShared(long id) {
+		return id | SHARED_MASK;
 	}
 
 	public static void computeShared(String sectionFile1, String sectionFile2, String sharedSectionFile) throws IOException {
