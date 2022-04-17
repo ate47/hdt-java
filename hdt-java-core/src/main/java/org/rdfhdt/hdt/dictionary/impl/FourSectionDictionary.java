@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.rdfhdt.hdt.dictionary.DictionarySectionPrivate;
 import org.rdfhdt.hdt.dictionary.TempDictionary;
@@ -44,6 +45,7 @@ import org.rdfhdt.hdt.options.ControlInfo;
 import org.rdfhdt.hdt.options.ControlInfo.Type;
 import org.rdfhdt.hdt.options.ControlInformation;
 import org.rdfhdt.hdt.options.HDTOptions;
+import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 import org.rdfhdt.hdt.util.io.CountInputStream;
 import org.rdfhdt.hdt.util.listener.IntermediateListener;
 
@@ -82,6 +84,21 @@ public class FourSectionDictionary extends BaseDictionary {
 		predicates.load(other.getPredicates(), iListener);
 		objects.load(other.getObjects(), iListener);
 		shared.load(other.getShared(), iListener);
+	}
+
+	@Override
+	public void loadAsync(TempDictionary other, ProgressListener listener) throws InterruptedException {
+		IntermediateListener iListener = new IntermediateListener(null);
+		ExceptionThread suReader = new ExceptionThread(() -> subjects.load(other.getSubjects(), iListener), "FourSecSAsyncReaderS");
+		ExceptionThread shReader = new ExceptionThread(() -> shared.load(other.getShared(), iListener), "FourSecSAsyncReaderSh");
+		ExceptionThread obReader = new ExceptionThread(() -> objects.load(other.getObjects(), iListener), "FourSecSAsyncReaderO");
+		suReader.start();
+		shReader.start();
+		obReader.start();
+		suReader.joinAndCrashIfRequired();
+		shReader.joinAndCrashIfRequired();
+		obReader.joinAndCrashIfRequired();
+		predicates.load(other.getPredicates(), iListener);
 	}
 
 	/* (non-Javadoc)

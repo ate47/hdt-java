@@ -1,4 +1,4 @@
-package org.rdfhdt.hdt.util.io;
+package org.rdfhdt.hdt.util.io.compress;
 
 import org.rdfhdt.hdt.compact.integer.VByte;
 import org.rdfhdt.hdt.exceptions.CRCException;
@@ -70,9 +70,9 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 		}
 		// map the triples to the end id, compute the shared with the end shared size
 		next.setAll(
-				CompressNodeWriter.computeSharedNode(sMapper.get(s), shared),
+				CompressUtil.computeSharedNode(sMapper.get(s), shared),
 				pMapper.get(p),
-				CompressNodeWriter.computeSharedNode(oMapper.get(o), shared)
+				CompressUtil.computeSharedNode(oMapper.get(o), shared)
 		);
 		read = true;
 		return false;

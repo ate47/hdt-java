@@ -424,7 +424,7 @@ public class HDTImpl implements HDTPrivate {
 	 * @see hdt.HDT#getHeader()
 	 */
 	@Override
-	public Header getHeader() {
+	public HeaderPrivate getHeader() {
 		return header;
 	}
 
@@ -434,7 +434,7 @@ public class HDTImpl implements HDTPrivate {
 	 * @see hdt.HDT#getDictionary()
 	 */
 	@Override
-	public Dictionary getDictionary() {
+	public DictionaryPrivate getDictionary() {
 		return dictionary;
 	}
 
@@ -444,7 +444,7 @@ public class HDTImpl implements HDTPrivate {
 	 * @see hdt.HDT#getTriples()
 	 */
 	@Override
-	public Triples getTriples() {
+	public TriplesPrivate getTriples() {
 		return triples;
 	}
 
@@ -463,7 +463,11 @@ public class HDTImpl implements HDTPrivate {
 		this.header = h;
 		this.dictionary = d;
 		this.triples = t;
-		isClosed=false;	
+		isClosed=false;
+	}
+
+	public void setBaseUri(String baseUri) {
+		this.baseUri = baseUri;
 	}
 
 	public void loadFromModifiableHDT(TempHDT modHdt, ProgressListener listener) {

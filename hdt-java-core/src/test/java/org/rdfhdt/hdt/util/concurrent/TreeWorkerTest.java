@@ -23,7 +23,7 @@ public class TreeWorkerTest {
 	public static Collection<Object> params() {
 		return Arrays.asList(1, 8);
 	}
-	private static class SyncSupplierTest implements Supplier<Integer> {
+	private static class SyncSupplierTest implements TreeWorker.TreeWorkerSupplier<Integer> {
 		private final int max;
 		private final long sleep;
 		private int val;
@@ -85,7 +85,7 @@ public class TreeWorkerTest {
 	public void syncSupplierTest() throws InterruptedException, TreeWorker.TreeWorkerException {
 		TreeWorker.TreeWorkerCat<Integer> cat = Integer::sum;
 		int max = 10;
-		Supplier<Integer> supplier = new SyncSupplierTest(max, 20L);
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new SyncSupplierTest(max, 20L);
 
 		TreeWorker<Integer> worker = new TreeWorker<>(cat, supplier, null, workers);
 		worker.start();
@@ -99,7 +99,7 @@ public class TreeWorkerTest {
 	public void noElementSupplierTest() throws TreeWorker.TreeWorkerException {
 		TreeWorker.TreeWorkerCat<Integer> cat = Integer::sum;
 		int max = 0;
-		Supplier<Integer> supplier = new SyncSupplierTest(max, 20L);
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new SyncSupplierTest(max, 20L);
 
 		// should crash because the supplier won't return any value to merge
 		new TreeWorker<>(cat, supplier, null, workers);
@@ -109,7 +109,7 @@ public class TreeWorkerTest {
 	public void oneElementSupplierTest() throws InterruptedException, TreeWorker.TreeWorkerException {
 		TreeWorker.TreeWorkerCat<Integer> cat = Integer::sum;
 		int max = 1;
-		Supplier<Integer> supplier = new SyncSupplierTest(max, 20L);
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new SyncSupplierTest(max, 20L);
 
 		TreeWorker<Integer> worker = new TreeWorker<>(cat, supplier, null, workers);
 		worker.start();
@@ -126,7 +126,7 @@ public class TreeWorkerTest {
 			throw new RuntimeException(error);
 		};
 		int max = 1;
-		Supplier<Integer> supplier = new SyncSupplierTest(max, 20L);
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new SyncSupplierTest(max, 20L);
 
 		TreeWorker<Integer> worker = new TreeWorker<>(cat, supplier, null, workers);
 		worker.start();
@@ -142,7 +142,7 @@ public class TreeWorkerTest {
 	public void countTest() throws InterruptedException, TreeWorker.TreeWorkerException {
 		CountCatTest cat = new CountCatTest();
 		int max = 1 << 5;
-		Supplier<Integer> supplier = new SyncSupplierTest(max, 2L);
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new SyncSupplierTest(max, 2L);
 
 		TreeWorker<Integer> worker = new TreeWorker<>(cat, supplier, null, workers);
 		worker.start();
@@ -157,7 +157,7 @@ public class TreeWorkerTest {
 	public void countAscendTest() throws InterruptedException, TreeWorker.TreeWorkerException {
 		CountCatTest cat = new CountCatTest();
 		int max = 1 << 5 - 1;
-		Supplier<Integer> supplier = new SyncSupplierTest(max, 2L);
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new SyncSupplierTest(max, 2L);
 
 		TreeWorker<Integer> worker = new TreeWorker<>(cat, supplier, null, workers);
 		worker.start();
@@ -181,7 +181,7 @@ public class TreeWorkerTest {
 				return next;
 			}
 		};
-		Supplier<Integer> supplier = new Supplier<>() {
+		TreeWorker.TreeWorkerSupplier<Integer> supplier = new TreeWorker.TreeWorkerSupplier<>() {
 			int value = 0;
 
 			@Override
@@ -197,7 +197,7 @@ public class TreeWorkerTest {
 			}
 		};
 
-		Consumer<Integer> delete = elements::remove;
+		TreeWorker.TreeWorkerDelete<Integer> delete = elements::remove;
 
 		TreeWorker<Integer> worker = new TreeWorker<>(cat, supplier, delete, workers);
 		worker.start();
@@ -256,7 +256,7 @@ public class TreeWorkerTest {
 					Assert.assertEquals(tst, l);
 					return l;
 				},
-				new Supplier<>() {
+				new TreeWorker.TreeWorkerSupplier<>() {
 					int index;
 					@Override
 					public List<Integer> get() {

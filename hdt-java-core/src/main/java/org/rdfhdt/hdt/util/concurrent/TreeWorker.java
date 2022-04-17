@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * a worker to parse tree operation
@@ -16,8 +14,8 @@ import java.util.function.Supplier;
 public class TreeWorker<T> {
 	private static final AtomicInteger JOB_ID_NAME = new AtomicInteger();
 	private final TreeWorkerCat<T> catFunction;
-	private final Supplier<T> baseLevelSupplier;
-	private final Consumer<T> delete;
+	private final TreeWorkerSupplier<T> baseLevelSupplier;
+	private final TreeWorkerDelete<T> delete;
 	private int maxLevel = 0;
 	private final Object WAITING_SYNC = new Object() {
 	};
@@ -36,10 +34,20 @@ public class TreeWorker<T> {
 	 * @throws TreeWorkerException if the tree worker can't be created
 	 * @throws java.lang.NullPointerException if catFunction or baseLevelSupplier is null
 	 */
-	public TreeWorker(TreeWorkerCat<T> catFunction, Supplier<T> baseLevelSupplier, Consumer<T> delete) throws TreeWorkerException {
+	public TreeWorker(TreeWorkerCat<T> catFunction, TreeWorkerSupplier<T> baseLevelSupplier, TreeWorkerDelete<T> delete) throws TreeWorkerException {
 		this(catFunction, baseLevelSupplier, delete, Runtime.getRuntime().availableProcessors());
 	}
 
+	/**
+	 * create a tree worker
+	 * @param workerObject the worker object
+	 * @param workers the number of workers to use
+	 * @throws TreeWorkerException if the tree worker can't be created
+	 * @throws java.lang.NullPointerException if catFunction or baseLevelSupplier is null
+	 */
+	public <E extends TreeWorkerCat<T> & TreeWorkerSupplier<T> & TreeWorkerDelete<T>> TreeWorker(E workerObject, int workers) throws TreeWorkerException {
+		this(workerObject, workerObject, workerObject, workers);
+	}
 	/**
 	 * create a tree worker
 	 * @param catFunction the function to cat 2 nodes
@@ -49,7 +57,7 @@ public class TreeWorker<T> {
 	 * @throws TreeWorkerException if the tree worker can't be created
 	 * @throws java.lang.NullPointerException if catFunction or baseLevelSupplier is null
 	 */
-	public TreeWorker(TreeWorkerCat<T> catFunction, Supplier<T> baseLevelSupplier, Consumer<T> delete, int workers) throws TreeWorkerException {
+	public TreeWorker(TreeWorkerCat<T> catFunction, TreeWorkerSupplier<T> baseLevelSupplier, TreeWorkerDelete<T> delete, int workers) throws TreeWorkerException {
 		this.catFunction = Objects.requireNonNull(catFunction, "catFunction can't be null!");
 		this.baseLevelSupplier = Objects.requireNonNull(baseLevelSupplier, "baseLevelSupplier can't be null!");
 		if (delete == null) {
@@ -88,7 +96,7 @@ public class TreeWorker<T> {
 
 	private void clearData() {
 		for (Element e: elements) {
-			delete.accept(e.t);
+			delete.delete(e.t);
 		}
 	}
 
@@ -183,6 +191,32 @@ public class TreeWorker<T> {
 		 * @return the cat of the 2 elements
 		 */
 		T construct(T a, T b);
+	}
+	/**
+	 * delete function in case of error
+	 * @param <T> the elements type
+	 * @author Antoine Willerval
+	 */
+	@FunctionalInterface
+	public interface TreeWorkerDelete<T> {
+		/**
+		 * delete an unused element
+		 * @param e the element to delete
+		 */
+		void delete(T e);
+	}
+	/**
+	 * supply function
+	 * @param <T> the elements type
+	 * @author Antoine Willerval
+	 */
+	@FunctionalInterface
+	public interface TreeWorkerSupplier<T> {
+		/**
+		 * supply an element to merge
+		 * @return the element to merge
+		 */
+		T get();
 	}
 
 	/**
@@ -282,8 +316,8 @@ public class TreeWorker<T> {
 		}
 		@Override
 		void clear() {
-			delete.accept(a.t);
-			delete.accept(b.t);
+			delete.delete(a.t);
+			delete.delete(b.t);
 		}
 	}
 
