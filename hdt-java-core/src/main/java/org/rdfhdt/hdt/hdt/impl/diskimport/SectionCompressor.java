@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerCat<SectionCompressor.TripleFile>, TreeWorker.TreeWorkerDelete<SectionCompressor.TripleFile>, TreeWorker.TreeWorkerSupplier<SectionCompressor.TripleFile> {
+public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject<SectionCompressor.TripleFile> {
 	private static final AtomicInteger ID_INC = new AtomicInteger();
 	private static final Logger log = LoggerFactory.getLogger(SectionCompressor.class);
 
@@ -43,7 +43,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerCat<Se
 		this.source = source;
 		this.listener = listener;
 		this.baseFileName = baseFileName;
-		this.triplesOutput = new File(baseFileName + "triples.raw");
+		this.triplesOutput = new File(baseFileName, "triples.raw");
 		this.writer = new CompressTripleWriter(new FileOutputStream(triplesOutput));
 	}
 
@@ -104,7 +104,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerCat<Se
 			ListenerUtil.notify(listener, "Writing sections", triples, 100);
 
 			int fid = ID_INC.incrementAndGet();
-			TripleFile sections = new TripleFile(new File(baseFileName + "section" + fid + ".raw"));
+			TripleFile sections = new TripleFile(new File(baseFileName, "section" + fid + ".raw"));
 			try (OutputStream stream = sections.openWSubject()) {
 				subjects.sort(IndexedNode::compareTo);
 				CompressUtil.writeCompressedSection(subjects, stream);
@@ -136,7 +136,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerCat<Se
 		int fid = ID_INC.incrementAndGet();
 		TripleFile sections;
 		try {
-			sections = new TripleFile(baseFileName + "section" + fid + ".raw");
+			sections = new TripleFile(new File(baseFileName, "section" + fid + ".raw"));
 
 			// subjects
 			try (OutputStream output = sections.openWSubject();
@@ -291,10 +291,6 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerCat<Se
 		public final File s;
 		public final File p;
 		public final File o;
-
-		public TripleFile(String root) throws IOException {
-			this(new File(root));
-		}
 
 		public TripleFile(File root) throws IOException {
 			this.root = root;

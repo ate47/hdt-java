@@ -6,6 +6,7 @@ import org.rdfhdt.hdt.dictionary.impl.CompressFourSectionDictionary;
 import org.rdfhdt.hdt.dictionary.impl.MultipleSectionDictionary;
 import org.rdfhdt.hdt.enums.CompressionType;
 import org.rdfhdt.hdt.enums.RDFNotation;
+import org.rdfhdt.hdt.enums.TripleComponentOrder;
 import org.rdfhdt.hdt.exceptions.NotFoundException;
 import org.rdfhdt.hdt.exceptions.ParserException;
 import org.rdfhdt.hdt.hdt.impl.HDTImpl;
@@ -14,9 +15,11 @@ import org.rdfhdt.hdt.hdt.impl.TempHDTImporterTwoPass;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressTripleMapper;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult;
 import org.rdfhdt.hdt.hdt.impl.diskimport.SectionCompressor;
+import org.rdfhdt.hdt.hdt.impl.diskimport.TripleCompressionResult;
 import org.rdfhdt.hdt.hdt.writer.TripleWriterHDT;
 import org.rdfhdt.hdt.header.HeaderPrivate;
 import org.rdfhdt.hdt.header.HeaderUtil;
+import org.rdfhdt.hdt.iterator.utils.FileTripleIDIterator;
 import org.rdfhdt.hdt.iterator.utils.FileTripleIterator;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.options.HDTOptions;
@@ -24,18 +27,21 @@ import org.rdfhdt.hdt.options.HDTSpecification;
 import org.rdfhdt.hdt.rdf.RDFParserCallback;
 import org.rdfhdt.hdt.rdf.RDFParserFactory;
 import org.rdfhdt.hdt.rdf.TripleWriter;
+import org.rdfhdt.hdt.triples.TempTriples;
 import org.rdfhdt.hdt.triples.TripleString;
 import org.rdfhdt.hdt.triples.TriplesPrivate;
 import org.rdfhdt.hdt.util.StopWatch;
 import org.rdfhdt.hdt.util.concurrent.TreeWorker;
 import org.rdfhdt.hdt.util.io.IOUtil;
-import org.rdfhdt.hdt.util.io.compress.CompressUtil;
+import org.rdfhdt.hdt.util.io.compress.MapCompressTripleMerger;
 import org.rdfhdt.hdt.util.listener.ListenerUtil;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.UUID;
 
@@ -192,15 +198,29 @@ public class HDTManagerImpl extends HDTManager {
 
 	@Override
 	public HDT doGenerateHDTDisk(Iterator<TripleString> iterator, String baseURI, HDTOptions hdtFormat, ProgressListener listener) throws IOException, ParserException {
+		// load config
 		String compressMode = hdtFormat.get("loader.disk.compressMode"); // see CompressionResult
 		int workers = (int) hdtFormat.getInt("loader.disk.compressWorker");
+		long chunkSize = hdtFormat.getInt("loader.disk.chunkSize");
+		String baseName = hdtFormat.get("loader.disk.location");
+
+		// check and set default values if required
 		if (workers == 0) {
 			workers = Runtime.getRuntime().availableProcessors();
 		} else if (workers < 0) {
 			throw new IllegalArgumentException("Negative number of workers!");
 		}
-		String baseName = "temp_gen_" + UUID.randomUUID() + "_";
-		long chunkSize = getMaxChunkSize(workers);
+		if (baseName == null || baseName.isEmpty()) {
+			baseName = "temp_gen_" + UUID.randomUUID();
+		}
+		if (chunkSize == 0) {
+			chunkSize = getMaxChunkSize(workers);
+		} else if (chunkSize < 0) {
+			throw new IllegalArgumentException("Negative chunk size!");
+		}
+
+		// create working directory
+		Files.createDirectories(Path.of(baseName));
 
 		// compress the triples into sections and compressed triples
 		ListenerUtil.notify(listener, "Sorting sections", 0, 100);
@@ -221,19 +241,35 @@ public class HDTManagerImpl extends HDTManager {
 		CompressFourSectionDictionary modifiableDictionary = new CompressFourSectionDictionary(compressionResult, mapper);
 		dictionary.load(modifiableDictionary, listener);
 
-		ListenerUtil.notify(listener, "Create mapped triple file", 40, 100);
+		// complete the mapper with the shared count and delete compression data
+		compressionResult.delete();
+		mapper.setShared(dictionary.getNshared());
+
+		ListenerUtil.notify(listener, "Create mapped and sort triple file", 40, 100);
 		// create mapped triples file
+		TripleCompressionResult tripleCompressionResult;
 		TriplesPrivate triples = hdt.getTriples();
+		TripleComponentOrder order = triples.getOrder();
+		try {
+			MapCompressTripleMerger tripleMapper = new MapCompressTripleMerger(new FileTripleIDIterator(null, chunkSize), mapper, workers, listener, order);
+			tripleCompressionResult = tripleMapper.merge(workers, compressMode);
+		} catch (TreeWorker.TreeWorkerException | InterruptedException e) {
+			throw new ParserException(e);
+		}
 
-		ListenerUtil.notify(listener, "Sort mapped triple file", 50, 100);
-		// sort mapped triple file
+		ListenerUtil.notify(listener, "Create bit triples", 80, 100);
+		// create bit triples and load the triples
+		TempTriples tempTriples = tripleCompressionResult.getTriples();
+		triples.load(tempTriples, listener);
+		tempTriples.close();
 
-		ListenerUtil.notify(listener, "Sort mapped triple file", 80, 100);
-		// create bit triples
+		// completed the triples, delete the mapper
+		mapper.delete();
+		tripleCompressionResult.close();
 
 		ListenerUtil.notify(listener, "Create HDT header", 90, 100);
 		// header
-		HeaderPrivate header = hdt.getHeader();
+		hdt.populateHeaderStructure(hdt.getBaseURI());
 
 		ListenerUtil.notify(listener, "HDT completed", 100, 100);
 		// return the HDT

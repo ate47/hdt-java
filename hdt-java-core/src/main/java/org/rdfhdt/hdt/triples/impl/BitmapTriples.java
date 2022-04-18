@@ -848,6 +848,7 @@ public class BitmapTriples implements TriplesPrivate {
 		}
 	}
 
+	@Override
 	public TripleComponentOrder getOrder() {
 		return this.order;
 	}

@@ -3,7 +3,6 @@ package org.rdfhdt.hdt.iterator.utils;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * alternative iterator with exception throwing
@@ -98,28 +97,17 @@ public interface ExceptionIterator<T, E extends Exception> {
 	 * @param <M> the new iterator type
 	 * @return iterator
 	 */
-	default <M> ExceptionIterator<M, E> map(Function<T, M> mappingFunc) {
-		return new ExceptionIterator<>() {
-			@Override
-			public boolean hasNext() throws E {
-				return ExceptionIterator.this.hasNext();
-			}
-
-			@Override
-			public M next() throws E {
-				return mappingFunc.apply(ExceptionIterator.this.next());
-			}
-
-			@Override
-			public void remove() throws E {
-				ExceptionIterator.this.remove();
-			}
-
-			@Override
-			public void forEachRemaining(ExceptionConsumer<? super M, E> action) throws E {
-				ExceptionIterator.this.forEachRemaining(e -> action.consume(mappingFunc.apply(e)));
-			}
-		};
+	default <M> ExceptionIterator<M, E> map(MapExceptionIterator.ExceptionFunction<T, M, E> mappingFunc) {
+		return new MapExceptionIterator<>(this, mappingFunc);
+	}
+	/**
+	 * map this iterator with a function
+	 * @param mappingFunc the mapping function
+	 * @param <M> the new iterator type
+	 * @return iterator
+	 */
+	default <M> ExceptionIterator<M, E> map(MapExceptionIterator.MapWithIdFunction<T, M, E> mappingFunc) {
+		return new MapExceptionIterator<>(this, mappingFunc);
 	}
 
 	/**

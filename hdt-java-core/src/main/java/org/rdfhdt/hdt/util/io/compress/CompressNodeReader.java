@@ -28,7 +28,7 @@ public class CompressNodeReader implements ExceptionIterator<IndexedNode, IOExce
 
 	public CompressNodeReader(InputStream stream) throws IOException {
 		this.stream = new CRCInputStream(stream, new CRC8());
-		this.size = VByte.decode(stream);
+		this.size = VByte.decode(this.stream);
 		if(!this.stream.readCRCAndCheck()) {
 			throw new CRCException("CRC Error while merging Section Plain Front Coding Header.");
 		}

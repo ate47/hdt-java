@@ -2,7 +2,6 @@ package org.rdfhdt.hdt.util.io.compress;
 
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
-import org.rdfhdt.hdt.util.disk.LongArrayDisk;
 import org.rdfhdt.hdt.util.string.CharSequenceComparator;
 import org.rdfhdt.hdt.util.string.ReplazableString;
 
@@ -48,9 +47,9 @@ public class CompressUtil {
 	 * @throws IOException writing exception
 	 */
 	public static void writeCompressedSection(ExceptionIterator<IndexedNode, IOException> it, long size, OutputStream output) throws IOException {
-		try (CompressNodeWriter writer = new CompressNodeWriter(output, size)) {
-			it.forEachRemaining(writer::appendNode);
-		}
+		CompressNodeWriter writer = new CompressNodeWriter(output, size);
+		it.forEachRemaining(writer::appendNode);
+		writer.writeCRC();
 	}
 
 	/**
@@ -66,7 +65,7 @@ public class CompressUtil {
 		CompressNodeReader in2r = new CompressNodeReader(stream2);
 
 		long size1 = in1r.getSize();
-		long size2 = in1r.getSize();
+		long size2 = in2r.getSize();
 
 		// merge the section
 		writeCompressedSection(new CompressNodeMergeIterator(in1r, in2r), size1 + size2, output);
@@ -113,6 +112,7 @@ public class CompressUtil {
 
 	/**
 	 * test if this id is a duplicated element
+	 *
 	 * @param id the id
 	 * @return true if id is a duplicated element, false otherwise
 	 */
@@ -122,6 +122,7 @@ public class CompressUtil {
 
 	/**
 	 * get the value of this duplicated id
+	 *
 	 * @param id duplicated id
 	 * @return next mapping
 	 */

@@ -31,11 +31,20 @@ public class CompressTripleWriter implements Closeable {
 		VByte.encode(out, triple.getObject().getIndex());
 	}
 
-	@Override
-	public void close() throws IOException {
+	/**
+	 * Write an end triple and a CRC to complete the writer
+	 * @throws IOException write error
+	 */
+	public void writeCRC() throws IOException {
 		VByte.encode(out, 0);
 		VByte.encode(out, 0);
 		VByte.encode(out, 0);
 		out.writeCRC();
+	}
+
+	@Override
+	public void close() throws IOException {
+		writeCRC();
+		out.close();
 	}
 }

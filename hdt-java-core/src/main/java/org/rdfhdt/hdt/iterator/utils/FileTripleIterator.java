@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.function.Consumer;
+import java.util.function.ToIntFunction;
 
 /**
  * Iterator to split an iterator stream into multiple files, the iterator return {@link #hasNext()} == true once the
@@ -13,95 +14,25 @@ import java.util.function.Consumer;
  * re-allow {@link #hasNext()} to return true
  * @author Antoine Willerval
  */
-public class FileTripleIterator implements Iterator<TripleString> {
+public class FileTripleIterator extends FileChunkIterator<TripleString> {
 	private static final Charset DEFAULT_CHARSET = Charset.defaultCharset();
-	private final Iterator<TripleString> it;
-	private final long maxSize;
-	private long currentSize = 0L;
-	private TripleString next;
-	private boolean stop = false;
+
+	private static long estimateSize(TripleString tripleString) {
+		try {
+			return tripleString.asNtriple().toString().getBytes(DEFAULT_CHARSET).length;
+		} catch (IOException e) {
+			throw new RuntimeException("Can't estimate the size of the triple " + tripleString, e);
+		}
+	}
 
 	/**
-	 * create a file triple iterator from a TripleString stream and a max size
-	 * @param it the triple iterator
-	 * @param maxSize the maximum size of each file, this size is estimated, so files can be bigger.
+	 * create a file iterator from a stream and a max size
+	 *
+	 * @param it                 the iterator
+	 * @param maxSize            the maximum size of each file, this size is estimated, so files can be bigger.
 	 */
 	public FileTripleIterator(Iterator<TripleString> it, long maxSize) {
-		this.it = it;
-		this.maxSize = maxSize;
+		super(it, maxSize, FileTripleIterator::estimateSize);
 	}
 
-	@Override
-	public boolean hasNext() {
-		if (stop)
-			return false;
-
-		if (next != null)
-			return true;
-
-		if (it.hasNext()) {
-			next = it.next();
-			long estimation;
-			try {
-				estimation = next.asNtriple().toString().getBytes(DEFAULT_CHARSET).length;
-			} catch (IOException e) {
-				throw new RuntimeException("Can't estimate the size of the triple " + next, e);
-			}
-			if (currentSize + estimation >= maxSize) {
-				stop = true;
-				currentSize = estimation;
-				return false;
-			}
-
-			currentSize += estimation;
-			return true;
-		}
-		return false;
-	}
-
-	@Override
-	public TripleString next() {
-		if (!hasNext()) {
-			return null;
-		}
-		TripleString t = next;
-		next = null;
-		return t;
-	}
-
-	@Override
-	public void remove() {
-		it.remove();
-	}
-
-	@Override
-	public void forEachRemaining(Consumer<? super TripleString> action) {
-		it.forEachRemaining(action);
-	}
-
-	/**
-	 * force the iterator to create a new file after the next hasNext()
-	 */
-	public void forceNewFile() {
-		long estimation;
-		if (next != null) {
-			try {
-				estimation = next.asNtriple().toString().getBytes(DEFAULT_CHARSET).length;
-			} catch (IOException e) {
-				throw new RuntimeException("Can't estimate the size of the triple " + next, e);
-			}
-		} else {
-			estimation = 0;
-		}
-		currentSize = estimation;
-		stop = true;
-	}
-
-	/**
-	 * @return if we need to open a new file
-	 */
-	public boolean hasNewFile() {
-		stop = false;
-		return hasNext();
-	}
 }

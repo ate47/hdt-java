@@ -6,6 +6,7 @@ import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.util.crc.CRC32;
 import org.rdfhdt.hdt.util.crc.CRCInputStream;
+import org.rdfhdt.hdt.util.disk.LongArray;
 import org.rdfhdt.hdt.util.disk.LongArrayDisk;
 
 import java.io.IOException;
@@ -20,12 +21,12 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 	private final CRCInputStream stream;
 	private final TripleID next = new TripleID(-1, -1, -1);
 	private boolean read = false, end = false;
-	private final LongArrayDisk sMapper;
-	private final LongArrayDisk pMapper;
-	private final LongArrayDisk oMapper;
+	private final LongArray sMapper;
+	private final LongArray pMapper;
+	private final LongArray oMapper;
 	private final long shared;
 
-	public CompressTripleReader(InputStream stream, LongArrayDisk sMapper, LongArrayDisk pMapper, LongArrayDisk oMapper, long shared) {
+	public CompressTripleReader(InputStream stream, LongArray sMapper, LongArray pMapper, LongArray oMapper, long shared) {
 		this.stream = new CRCInputStream(stream, new CRC32());
 		this.sMapper = sMapper;
 		this.pMapper = pMapper;
@@ -83,6 +84,7 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 		if (!hasNext()) {
 			return null;
 		}
+		read = false;
 		return next;
 	}
 }

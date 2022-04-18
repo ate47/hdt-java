@@ -219,6 +219,9 @@ public class TreeWorker<T> {
 		T get();
 	}
 
+	public interface TreeWorkerObject<T> extends TreeWorkerCat<T>, TreeWorkerSupplier<T>, TreeWorkerDelete<T> {
+	}
+
 	/**
 	 * @return if the worker is completed
 	 */

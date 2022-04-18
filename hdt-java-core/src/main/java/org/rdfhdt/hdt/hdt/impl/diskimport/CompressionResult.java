@@ -2,7 +2,6 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
-import org.rdfhdt.hdt.util.io.compress.CompressNodeReader;
 
 import java.io.Closeable;
 import java.io.File;

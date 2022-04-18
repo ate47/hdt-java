@@ -8,64 +8,16 @@ import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.iterator.utils.MapIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
-import org.rdfhdt.hdt.util.io.compress.CompressUtil;
-import org.rdfhdt.hdt.util.string.CharSequenceComparator;
+import org.rdfhdt.hdt.util.io.compress.CompressNodeTest;
+import org.rdfhdt.hdt.util.io.compress.CompressTest;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 public class CompressFourSectionDictionaryTest {
-	private void assertCharSequenceEquals(String location, CharSequence s1, CharSequence s2) {
-		if (CharSequenceComparator.getInstance().compare(s1, s2) != 0) {
-			throw new AssertionError(location + ", excepted: " + s1 + " != actual: " + s2);
-		}
-	}
-
-	@Test
-	public void noDupeTest() {
-		List<IndexedNode> duplicatedList = Arrays.asList(
-				new IndexedNode("a", 0),
-				new IndexedNode("b", 1),
-				new IndexedNode("b", 2),
-				new IndexedNode("c", 3),
-				new IndexedNode("c", 4),
-				new IndexedNode("c", 5),
-				new IndexedNode("d", 6),
-				new IndexedNode("e", 7),
-				new IndexedNode("f", 8)
-		);
-		List<CharSequence> noDuplicatedList = Arrays.asList(
-				"a",
-				"b",
-				"c",
-				"d",
-				"e",
-				"f"
-		);
-
-		Set<Long> duplicates = new HashSet<>();
-		duplicates.add(2L);
-		duplicates.add(4L);
-		duplicates.add(5L);
-
-		Iterator<IndexedNode> actual = CompressUtil.asNoDupeCharSequenceIterator(
-				ExceptionIterator.of(duplicatedList.iterator()),
-				(originalIndex, duplicatedIndex) ->
-					Assert.assertTrue(duplicates.remove(duplicatedIndex))
-		);
-		for (CharSequence e : noDuplicatedList) {
-			Assert.assertTrue(actual.hasNext());
-			CharSequence a = actual.next().getNode();
-
-			assertCharSequenceEquals("noDupeTest", e, a);
-		}
-	}
-
 	@Test
 	public void compressDictTest() throws Exception {
 		TestCompressionResult result = new TestCompressionResult(
@@ -101,7 +53,7 @@ public class CompressFourSectionDictionaryTest {
 				Assert.assertTrue(su.hasNext());
 				CharSequence a = su.next();
 				Thread.sleep(40);
-				assertCharSequenceEquals("Subject", e, a);
+				CompressTest.assertCharSequenceEquals("Subject", e, a);
 			}
 		}, "compressDictTestS");
 		ExceptionThread predicateReader = new ExceptionThread(() -> {
@@ -109,7 +61,7 @@ public class CompressFourSectionDictionaryTest {
 				Assert.assertTrue(pr.hasNext());
 				CharSequence a = pr.next();
 				Thread.sleep(40);
-				assertCharSequenceEquals("Predicate", e, a);
+				CompressTest.assertCharSequenceEquals("Predicate", e, a);
 			}
 		}, "compressDictTestP");
 		ExceptionThread objectReader = new ExceptionThread(() -> {
@@ -117,7 +69,7 @@ public class CompressFourSectionDictionaryTest {
 				Assert.assertTrue(ob.hasNext());
 				CharSequence a = ob.next();
 				Thread.sleep(40);
-				assertCharSequenceEquals("Object", e, a);
+				CompressTest.assertCharSequenceEquals("Object", e, a);
 			}
 		}, "compressDictTestO");
 		ExceptionThread sharedReader = new ExceptionThread(() -> {
@@ -125,7 +77,7 @@ public class CompressFourSectionDictionaryTest {
 				Assert.assertTrue(sh.hasNext());
 				CharSequence a = sh.next();
 				Thread.sleep(40);
-				assertCharSequenceEquals("Shared", e, a);
+				CompressTest.assertCharSequenceEquals("Shared", e, a);
 			}
 		}, "compressDictTestSh");
 

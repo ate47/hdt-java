@@ -3,23 +3,60 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 import org.rdfhdt.hdt.dictionary.impl.CompressFourSectionDictionary;
 import org.rdfhdt.hdt.util.disk.LongArrayDisk;
 import org.rdfhdt.hdt.util.io.compress.CompressUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
 public class CompressTripleMapper implements CompressFourSectionDictionary.NodeConsumer {
+	private static final Logger log = LoggerFactory.getLogger(CompressTripleMapper.class);
 	private final LongArrayDisk subjects;
 	private final LongArrayDisk predicates;
 	private final LongArrayDisk objects;
+	private final File locationSubjects;
+	private final File locationPredicates;
+	private final File locationObjects;
 	private long shared = -1;
 
-	public CompressTripleMapper(String location, long tripleCount) throws IOException {
+	public CompressTripleMapper(String location, long tripleCount) {
 		File l = new File(location);
-		Files.createDirectories(l.toPath());
-		subjects = new LongArrayDisk(new File(l, "map_subjects").getAbsolutePath(), tripleCount);
-		predicates = new LongArrayDisk(new File(l, "map_predicates").getAbsolutePath(), tripleCount);
-		objects = new LongArrayDisk(new File(l, "map_objects").getAbsolutePath(), tripleCount);
+		locationSubjects = new File(l, "map_subjects");
+		locationPredicates = new File(l, "map_predicates");
+		locationObjects = new File(l, "map_objects");
+		subjects = new LongArrayDisk(locationSubjects.getAbsolutePath(), tripleCount);
+		predicates = new LongArrayDisk(locationPredicates.getAbsolutePath(), tripleCount);
+		objects = new LongArrayDisk(locationObjects.getAbsolutePath(), tripleCount);
+	}
+
+	public void delete() {
+		try {
+			try {
+				subjects.close();
+			} finally {
+				try {
+					predicates.close();
+				} finally {
+					objects.close();
+				}
+			}
+		} catch (IOException e) {
+			log.warn("Can't close triple map array", e);
+		}
+		try {
+			try {
+				Files.deleteIfExists(locationSubjects.toPath());
+			} finally {
+				try {
+					Files.deleteIfExists(locationPredicates.toPath());
+				} finally {
+					Files.deleteIfExists(locationObjects.toPath());
+				}
+			}
+		} catch (IOException e) {
+			log.warn("Can't delete triple map array files", e);
+		}
 	}
 
 	@Override
