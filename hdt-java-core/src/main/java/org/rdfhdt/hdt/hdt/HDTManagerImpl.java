@@ -144,6 +144,18 @@ public class HDTManagerImpl extends HDTManager {
 	}
 
 	@Override
+	public HDT doGenerateHDT(InputStream fileStream, String baseURI, RDFNotation rdfNotation, CompressionType compressionType, HDTOptions hdtFormat, ProgressListener listener) throws IOException {
+		// uncompress the stream if required
+		fileStream = IOUtil.asUncompressed(fileStream, compressionType);
+		// create a parser for this rdf stream
+		RDFParserCallback parser = RDFParserFactory.getParserCallback(rdfNotation);
+		// read the stream as triples
+		Iterator<TripleString> iterator = RDFParserFactory.readAsIterator(parser, fileStream, baseURI, true, rdfNotation);
+
+		return doGenerateHDT(iterator, baseURI, hdtFormat, listener);
+	}
+
+	@Override
 	public HDT doGenerateHDT(Iterator<TripleString> triples, String baseURI, HDTOptions spec, ProgressListener listener) throws IOException {
 		//choose the importer
 		TempHDTImporterOnePass loader = new TempHDTImporterOnePass(false);
