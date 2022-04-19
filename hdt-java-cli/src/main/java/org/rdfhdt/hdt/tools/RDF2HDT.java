@@ -29,6 +29,7 @@ package org.rdfhdt.hdt.tools;
 import java.io.IOException;
 import java.util.List;
 
+import org.rdfhdt.hdt.enums.CompressionType;
 import org.rdfhdt.hdt.enums.RDFNotation;
 import org.rdfhdt.hdt.exceptions.ParserException;
 import org.rdfhdt.hdt.hdt.HDT;
@@ -75,9 +76,12 @@ public class RDF2HDT implements ProgressListener {
 	@Parameter(names = "-quiet", description = "Do not show progress of the conversion")
 	public boolean quiet;
 
+	@Parameter(names = "-disk", description = "Generate the HDT on disk to reduce memory usage")
+	public boolean disk;
+
 	@Parameter(names = "-canonicalntfile", description = "Only for NTriples input. Use a Fast NT file parser the input should be in a canonical form. See https://www.w3.org/TR/n-triples/#h2_canonical-ntriples")
 	public boolean ntSimpleLoading;
-	
+
 	public void execute() throws ParserException, IOException {
 		HDTSpecification spec;
 		if(configFile!=null) {
@@ -115,7 +119,13 @@ public class RDF2HDT implements ProgressListener {
 		}
 
 		StopWatch sw = new StopWatch();
-		HDT hdt = HDTManager.generateHDT(rdfInput, baseURI,notation , spec, this);
+		HDT hdt;
+
+		if (disk) {
+			hdt = HDTManager.generateHDTDisk(rdfInput, baseURI, notation, CompressionType.guess(rdfInput), spec, this);
+		} else {
+			hdt = HDTManager.generateHDT(rdfInput, baseURI, notation, spec, this);
+		}
 		System.out.println("File converted in: "+sw.stopAndShow());
 
 		try {

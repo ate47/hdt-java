@@ -277,7 +277,7 @@ public class HDTManagerImpl extends HDTManager {
 				throw new ParserException(e);
 			}
 
-			try (tripleCompressionResult) {
+			try {
 				ListenerUtil.notify(listener, "Create bit triples", 80, 100);
 				// create bit triples and load the triples
 				TempTriples tempTriples = tripleCompressionResult.getTriples();
@@ -286,6 +286,8 @@ public class HDTManagerImpl extends HDTManager {
 
 				// completed the triples, delete the mapper
 				mapper.delete();
+			} finally {
+				tripleCompressionResult.close();
 			}
 
 			ListenerUtil.notify(listener, "Create HDT header", 90, 100);
