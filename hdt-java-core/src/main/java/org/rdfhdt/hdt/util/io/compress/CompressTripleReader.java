@@ -6,9 +6,8 @@ import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.util.crc.CRC32;
 import org.rdfhdt.hdt.util.crc.CRCInputStream;
-import org.rdfhdt.hdt.util.disk.LongArray;
-import org.rdfhdt.hdt.util.disk.LongArrayDisk;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -17,21 +16,13 @@ import java.io.InputStream;
  *
  * @author Antoine Willerval
  */
-public class CompressTripleReader implements ExceptionIterator<TripleID, IOException> {
+public class CompressTripleReader implements ExceptionIterator<TripleID, IOException>, Closeable {
 	private final CRCInputStream stream;
 	private final TripleID next = new TripleID(-1, -1, -1);
 	private boolean read = false, end = false;
-	private final LongArray sMapper;
-	private final LongArray pMapper;
-	private final LongArray oMapper;
-	private final long shared;
 
-	public CompressTripleReader(InputStream stream, LongArray sMapper, LongArray pMapper, LongArray oMapper, long shared) {
+	public CompressTripleReader(InputStream stream) {
 		this.stream = new CRCInputStream(stream, new CRC32());
-		this.sMapper = sMapper;
-		this.pMapper = pMapper;
-		this.oMapper = oMapper;
-		this.shared = shared;
 	}
 
 	@Override
@@ -45,9 +36,14 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 			return false;
 		}
 
-		long s = VByte.decode(stream);
-		long p = VByte.decode(stream);
-		long o = VByte.decode(stream);
+		long s, p, o;
+
+		do {
+			s = VByte.decode(stream);
+			p = VByte.decode(stream);
+			o = VByte.decode(stream);
+			// continue to read to avoid duplicated triples
+		} while (s == next.getSubject() && p == next.getPredicate() && o == next.getObject());
 
 		return !setAllOrEnd(s, p, o);
 	}
@@ -60,7 +56,7 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 		if (s == 0 || p == 0 || o == 0) {
 			// check triples validity
 			if (s != 0 || p != 0 || o != 0) {
-				throw new IOException("Triple got null node, but not all the nodes are 0!" + next);
+				throw new IOException("Triple got null node, but not all the nodes are 0!" + s + " " + p + " " + o);
 			}
 			if (!stream.readCRCAndCheck()) {
 				throw new CRCException("CRC Error while reading PreMapped triples.");
@@ -70,11 +66,7 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 			return true;
 		}
 		// map the triples to the end id, compute the shared with the end shared size
-		next.setAll(
-				CompressUtil.computeSharedNode(sMapper.get(s), shared),
-				pMapper.get(p),
-				CompressUtil.computeSharedNode(oMapper.get(o), shared)
-		);
+		next.setAll(s, p, o);
 		read = true;
 		return false;
 	}
@@ -86,5 +78,10 @@ public class CompressTripleReader implements ExceptionIterator<TripleID, IOExcep
 		}
 		read = false;
 		return next;
+	}
+
+	@Override
+	public void close() throws IOException {
+		stream.close();
 	}
 }

@@ -25,9 +25,9 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 		locationSubjects = new File(l, "map_subjects");
 		locationPredicates = new File(l, "map_predicates");
 		locationObjects = new File(l, "map_objects");
-		subjects = new LongArrayDisk(locationSubjects.getAbsolutePath(), tripleCount);
-		predicates = new LongArrayDisk(locationPredicates.getAbsolutePath(), tripleCount);
-		objects = new LongArrayDisk(locationObjects.getAbsolutePath(), tripleCount);
+		subjects = new LongArrayDisk(locationSubjects.getAbsolutePath(), tripleCount + 2);
+		predicates = new LongArrayDisk(locationPredicates.getAbsolutePath(), tripleCount + 2);
+		objects = new LongArrayDisk(locationObjects.getAbsolutePath(), tripleCount + 2);
 	}
 
 	public void delete() {
@@ -111,7 +111,7 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 	 * @return new id
 	 */
 	public long extractPredicate(long id) {
-		return extract(predicates, id);
+		return extract(predicates, id) - shared;
 	}
 
 	/**

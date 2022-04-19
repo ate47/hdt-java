@@ -14,6 +14,7 @@ public class FileChunkIterator<E> implements Iterator<E> {
 	private final ToLongFunction<E> estimationFunction;
 	private final Iterator<E> it;
 	private final long maxSize;
+	private long totalSize = 0L;
 	private long currentSize = 0L;
 	private E next;
 	private boolean stop = false;
@@ -41,6 +42,9 @@ public class FileChunkIterator<E> implements Iterator<E> {
 		if (it.hasNext()) {
 			next = it.next();
 			long estimation = estimationFunction.applyAsLong(next);
+
+			totalSize += estimation;
+
 			if (currentSize + estimation >= maxSize) {
 				stop = true;
 				currentSize = estimation;
@@ -93,5 +97,9 @@ public class FileChunkIterator<E> implements Iterator<E> {
 	public boolean hasNewFile() {
 		stop = false;
 		return hasNext();
+	}
+
+	public long getTotalSize() {
+		return totalSize;
 	}
 }

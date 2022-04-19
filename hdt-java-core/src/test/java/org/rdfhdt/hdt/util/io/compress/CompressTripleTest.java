@@ -3,13 +3,11 @@ package org.rdfhdt.hdt.util.io.compress;
 import org.junit.Assert;
 import org.junit.Test;
 import org.rdfhdt.hdt.enums.TripleComponentOrder;
-import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.triples.IndexedTriple;
 import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
-import org.rdfhdt.hdt.util.disk.LongArray;
 
 import java.io.IOException;
 import java.io.PipedInputStream;
@@ -26,36 +24,62 @@ public class CompressTripleTest {
 		out.connect(in);
 		List<IndexedTriple> triples = Arrays.asList(
 				new IndexedTriple(
-						new IndexedNode("bob", 1),
-						new IndexedNode("predi1", 9),
-						new IndexedNode("obj1", 11)
+						new IndexedNode("", 1),
+						new IndexedNode("", 9),
+						new IndexedNode("", 11)
 				),
 				new IndexedTriple(
-						new IndexedNode("michel", 3),
-						new IndexedNode("predi", 10),
-						new IndexedNode("obj2", 11)
+						new IndexedNode("", 1),
+						new IndexedNode("", 9),
+						new IndexedNode("", 11)
 				),
 				new IndexedTriple(
-						new IndexedNode("jack", 2),
-						new IndexedNode("predi2", 12),
-						new IndexedNode("obj3", 15)
+						new IndexedNode("", 3),
+						new IndexedNode("", 10),
+						new IndexedNode("", 11)
 				),
 				new IndexedTriple(
-						new IndexedNode("charles", 6),
-						new IndexedNode("predi3", 14),
-						new IndexedNode("obj4", 13)
+						new IndexedNode("", 2),
+						new IndexedNode("", 12),
+						new IndexedNode("", 15)
+				),
+				new IndexedTriple(
+						new IndexedNode("", 2),
+						new IndexedNode("", 12),
+						new IndexedNode("", 15)
+				),
+				new IndexedTriple(
+						new IndexedNode("", 6),
+						new IndexedNode("", 14),
+						new IndexedNode("", 13)
+				)
+		);
+		List<IndexedTriple> noDupeTriples = Arrays.asList(
+				new IndexedTriple(
+						new IndexedNode("", 1),
+						new IndexedNode("", 9),
+						new IndexedNode("", 11)
+				),
+				new IndexedTriple(
+						new IndexedNode("", 3),
+						new IndexedNode("", 10),
+						new IndexedNode("", 11)
+				),
+				new IndexedTriple(
+						new IndexedNode("", 2),
+						new IndexedNode("", 12),
+						new IndexedNode("", 15)
+				),
+				new IndexedTriple(
+						new IndexedNode("", 6),
+						new IndexedNode("", 14),
+						new IndexedNode("", 13)
 				)
 		);
 		new ExceptionThread(() -> {
-			CompressTripleReader reader = new CompressTripleReader(
-					in,
-					new NonMutableLongArray(triples.size()),
-					new NonMutableLongArray(triples.size()),
-					new NonMutableLongArray(triples.size()),
-					0
-			);
+			CompressTripleReader reader = new CompressTripleReader(in);
 			try {
-				for (IndexedTriple exceptedIndex : triples) {
+				for (IndexedTriple exceptedIndex : noDupeTriples) {
 					Assert.assertTrue(reader.hasNext());
 					TripleID actual = reader.next();
 					TripleID excepted = new TripleID(
@@ -90,6 +114,60 @@ public class CompressTripleTest {
 				}, "WriteTest")
 		).startAll().joinAndCrashIfRequired();
 	}
+
+	@Test
+	public void writeReadTripleIDTest() throws InterruptedException, IOException {
+		PipedOutputStream out = new PipedOutputStream();
+		PipedInputStream in = new PipedInputStream();
+		out.connect(in);
+		List<TripleID> triples = Arrays.asList(
+				new TripleID(1, 9, 11),
+				new TripleID(1, 9, 11),
+				new TripleID(3, 10, 11),
+				new TripleID(2, 12, 15),
+				new TripleID(2, 12, 15),
+				new TripleID(6, 14, 13)
+		);
+		List<TripleID> noDupeTriples = Arrays.asList(
+				new TripleID(1, 9, 11),
+				new TripleID(3, 10, 11),
+				new TripleID(2, 12, 15),
+				new TripleID(6, 14, 13)
+		);
+		new ExceptionThread(() -> {
+			CompressTripleReader reader = new CompressTripleReader(in);
+			try {
+				for (TripleID excepted : noDupeTriples) {
+					Assert.assertTrue(reader.hasNext());
+					TripleID actual = reader.next();
+					Assert.assertEquals(excepted, actual);
+				}
+				Assert.assertFalse(reader.hasNext());
+				Assert.assertEquals(34, in.read());
+				Assert.assertEquals(12, in.read());
+				Assert.assertEquals(27, in.read());
+			} finally {
+				in.close();
+			}
+		}, "ReadTest").attach(
+				new ExceptionThread(() -> {
+					CompressTripleWriter writer = new CompressTripleWriter(out);
+					try {
+						for (TripleID triple : triples) {
+							writer.appendTriple(triple);
+						}
+						writer.writeCRC();
+						// raw data to check if we didn't read too/not enough data
+						out.write(34);
+						out.write(12);
+						out.write(27);
+					} finally {
+						out.close();
+					}
+				}, "WriteTest")
+		).startAll().joinAndCrashIfRequired();
+	}
+
 	@Test
 	public void writeReadMergeTest() {
 		List<TripleID> triples1 = Arrays.asList(
@@ -123,29 +201,6 @@ public class CompressTripleTest {
 		});
 		Assert.assertFalse(actual.hasNext());
 
-	}
-
-	private static class NonMutableLongArray implements LongArray {
-		private final long size;
-
-		public NonMutableLongArray(long size) {
-			this.size = size;
-		}
-
-		@Override
-		public long get(long x) {
-			return x;
-		}
-
-		@Override
-		public void set(long x, long y) {
-			throw new NotImplementedException();
-		}
-
-		@Override
-		public long length() {
-			return size;
-		}
 	}
 
 }

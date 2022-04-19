@@ -2,6 +2,7 @@ package org.rdfhdt.hdt.util.io.compress;
 
 import org.rdfhdt.hdt.compact.integer.VByte;
 import org.rdfhdt.hdt.triples.IndexedTriple;
+import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.util.crc.CRC32;
 import org.rdfhdt.hdt.util.crc.CRCOutputStream;
 
@@ -29,6 +30,16 @@ public class CompressTripleWriter implements Closeable {
 		VByte.encode(out, triple.getSubject().getIndex());
 		VByte.encode(out, triple.getPredicate().getIndex());
 		VByte.encode(out, triple.getObject().getIndex());
+	}
+	/**
+	 * write a indexed triple into an output
+	 * @param triple the triple to write
+	 * @throws java.io.IOException write exception
+	 */
+	public void appendTriple(TripleID triple) throws IOException {
+		VByte.encode(out, triple.getSubject());
+		VByte.encode(out, triple.getPredicate());
+		VByte.encode(out, triple.getObject());
 	}
 
 	/**

@@ -92,7 +92,7 @@ public class RDFParserFactory {
 	 * @param notation the rdf notation to parse
 	 * @return iterator
 	 */
-	public static Iterator<TripleString> readAsIterator(RDFParserCallback parser, InputStream stream, String baseUri, RDFNotation notation) {
-		return PipedIterator.createOfCallback(pipe -> parser.doParse(stream, baseUri, notation, (triple, pos) -> pipe.addElement(triple)));
+	public static Iterator<TripleString> readAsIterator(RDFParserCallback parser, InputStream stream, String baseUri, boolean keepBNode, RDFNotation notation) {
+		return PipedIterator.createOfCallback(pipe -> parser.doParse(stream, baseUri, notation, keepBNode, (triple, pos) -> pipe.addElement(triple)));
 	}
 }

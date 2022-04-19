@@ -185,4 +185,13 @@ public class LargeFakeDataSetStreamSupplier {
 		}
 	}
 
+	public LargeFakeDataSetStreamSupplier withMaxFakeType(int maxFakeType) {
+		this.maxFakeType = maxFakeType;
+		return this;
+	}
+
+	public LargeFakeDataSetStreamSupplier withMaxElementSplit(int maxElementSplit) {
+		this.maxElementSplit = maxElementSplit;
+		return this;
+	}
 }

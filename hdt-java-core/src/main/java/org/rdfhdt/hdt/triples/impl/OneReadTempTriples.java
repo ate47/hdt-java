@@ -1,6 +1,7 @@
 package org.rdfhdt.hdt.triples.impl;
 
 import org.rdfhdt.hdt.dictionary.impl.DictionaryIDMapping;
+import org.rdfhdt.hdt.enums.ResultEstimationType;
 import org.rdfhdt.hdt.enums.TripleComponentOrder;
 import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.header.Header;
@@ -17,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Iterator;
 
 /**
  * {@link org.rdfhdt.hdt.triples.TempTriples} only readable once with the {@link #searchAll()} method with a predefined
@@ -28,8 +30,8 @@ public class OneReadTempTriples implements TempTriples {
 	private final IteratorTripleID iterator;
 	private final TripleComponentOrder order;
 
-	public OneReadTempTriples(IteratorTripleID iterator, TripleComponentOrder order) {
-		this.iterator = iterator;
+	public OneReadTempTriples(Iterator<TripleID> iterator, TripleComponentOrder order, long triples) {
+		this.iterator = new SimpleIteratorTripleID(iterator, order, triples);
 		this.order = order;
 	}
 
@@ -163,5 +165,72 @@ public class OneReadTempTriples implements TempTriples {
 	@Override
 	public void close() throws IOException {
 		// nothing to do
+	}
+
+	private static class SimpleIteratorTripleID implements IteratorTripleID {
+		private final Iterator<TripleID> it;
+		private final TripleComponentOrder order;
+		private final long tripleCount;
+
+		public SimpleIteratorTripleID(Iterator<TripleID> it, TripleComponentOrder order, long tripleCount) {
+			this.it = it;
+			this.order = order;
+			this.tripleCount = tripleCount;
+		}
+
+		@Override
+		public boolean hasPrevious() {
+			throw new NotImplementedException();
+		}
+
+		@Override
+		public TripleID previous() {
+			throw new NotImplementedException();
+		}
+
+		@Override
+		public void goToStart() {
+			throw new NotImplementedException();
+		}
+
+		@Override
+		public boolean canGoTo() {
+			throw new NotImplementedException();
+		}
+
+		@Override
+		public void goTo(long pos) {
+			throw new NotImplementedException();
+		}
+
+		@Override
+		public long estimatedNumResults() {
+			return tripleCount;
+		}
+
+		@Override
+		public ResultEstimationType numResultEstimation() {
+			return ResultEstimationType.UP_TO;
+		}
+
+		@Override
+		public TripleComponentOrder getOrder() {
+			return order;
+		}
+
+		@Override
+		public long getLastTriplePosition() {
+			return tripleCount;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return it.hasNext();
+		}
+
+		@Override
+		public TripleID next() {
+			return it.next();
+		}
 	}
 }

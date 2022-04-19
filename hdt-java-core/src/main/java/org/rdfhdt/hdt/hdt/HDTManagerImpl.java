@@ -17,7 +17,6 @@ import org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult;
 import org.rdfhdt.hdt.hdt.impl.diskimport.SectionCompressor;
 import org.rdfhdt.hdt.hdt.impl.diskimport.TripleCompressionResult;
 import org.rdfhdt.hdt.hdt.writer.TripleWriterHDT;
-import org.rdfhdt.hdt.header.HeaderPrivate;
 import org.rdfhdt.hdt.header.HeaderUtil;
 import org.rdfhdt.hdt.iterator.utils.FileTripleIDIterator;
 import org.rdfhdt.hdt.iterator.utils.FileTripleIterator;
@@ -33,10 +32,12 @@ import org.rdfhdt.hdt.triples.TriplesPrivate;
 import org.rdfhdt.hdt.util.StopWatch;
 import org.rdfhdt.hdt.util.concurrent.TreeWorker;
 import org.rdfhdt.hdt.util.io.IOUtil;
+import org.rdfhdt.hdt.util.io.compress.CompressTripleReader;
 import org.rdfhdt.hdt.util.io.compress.MapCompressTripleMerger;
 import org.rdfhdt.hdt.util.listener.ListenerUtil;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -182,7 +183,7 @@ public class HDTManagerImpl extends HDTManager {
 		// create a parser for this rdf stream
 		RDFParserCallback parser = RDFParserFactory.getParserCallback(rdfNotation);
 		// read the stream as triples
-		Iterator<TripleString> iterator = RDFParserFactory.readAsIterator(parser, fileStream, baseURI, rdfNotation);
+		Iterator<TripleString> iterator = RDFParserFactory.readAsIterator(parser, fileStream, baseURI, true, rdfNotation);
 
 		return doGenerateHDTDisk(iterator, baseURI, hdtFormat, listener);
 	}
@@ -221,59 +222,72 @@ public class HDTManagerImpl extends HDTManager {
 
 		// create working directory
 		Files.createDirectories(Path.of(baseName));
-
-		// compress the triples into sections and compressed triples
-		ListenerUtil.notify(listener, "Sorting sections", 0, 100);
-		CompressionResult compressionResult;
-		try (SectionCompressor sectionCompressor = new SectionCompressor(baseName, new FileTripleIterator(iterator, chunkSize), listener)) {
-			compressionResult = sectionCompressor.compress(workers, compressMode);
-		} catch (TreeWorker.TreeWorkerException | InterruptedException e) {
-			throw new ParserException(e);
-		}
-
-		HDTImpl hdt = new HDTImpl(hdtFormat);
-		hdt.setBaseUri(baseURI);
-
-		ListenerUtil.notify(listener, "Create sections and triple mapping", 20, 100);
-		// create sections and triple mapping
-		DictionaryPrivate dictionary = hdt.getDictionary();
-		CompressTripleMapper mapper = new CompressTripleMapper(baseName, compressionResult.getTripleCount());
-		CompressFourSectionDictionary modifiableDictionary = new CompressFourSectionDictionary(compressionResult, mapper);
-		dictionary.load(modifiableDictionary, listener);
-
-		// complete the mapper with the shared count and delete compression data
-		compressionResult.delete();
-		mapper.setShared(dictionary.getNshared());
-
-		ListenerUtil.notify(listener, "Create mapped and sort triple file", 40, 100);
-		// create mapped triples file
-		TripleCompressionResult tripleCompressionResult;
-		TriplesPrivate triples = hdt.getTriples();
-		TripleComponentOrder order = triples.getOrder();
 		try {
-			MapCompressTripleMerger tripleMapper = new MapCompressTripleMerger(new FileTripleIDIterator(null, chunkSize), mapper, workers, listener, order);
-			tripleCompressionResult = tripleMapper.merge(workers, compressMode);
-		} catch (TreeWorker.TreeWorkerException | InterruptedException e) {
-			throw new ParserException(e);
+			// compress the triples into sections and compressed triples
+			ListenerUtil.notify(listener, "Sorting sections", 0, 100);
+
+			FileTripleIterator triplesFile = new FileTripleIterator(iterator, chunkSize);
+
+			CompressionResult compressionResult;
+			try (SectionCompressor sectionCompressor = new SectionCompressor(baseName, triplesFile, listener)) {
+				compressionResult = sectionCompressor.compress(workers, compressMode);
+			} catch (TreeWorker.TreeWorkerException | InterruptedException e) {
+				throw new ParserException(e);
+			}
+
+			HDTImpl hdt = new HDTImpl(hdtFormat);
+			hdt.setBaseUri(baseURI);
+
+			ListenerUtil.notify(listener, "Create sections and triple mapping", 20, 100);
+			// create sections and triple mapping
+			DictionaryPrivate dictionary = hdt.getDictionary();
+			CompressTripleMapper mapper = new CompressTripleMapper(baseName, compressionResult.getTripleCount());
+			CompressFourSectionDictionary modifiableDictionary = new CompressFourSectionDictionary(compressionResult, mapper);
+			try {
+				dictionary.loadAsync(modifiableDictionary, listener);
+			} catch (InterruptedException e) {
+				throw new ParserException(e);
+			}
+
+			// complete the mapper with the shared count and delete compression data
+			compressionResult.delete();
+			mapper.setShared(dictionary.getNshared());
+
+			ListenerUtil.notify(listener, "Create mapped and sort triple file", 40, 100);
+			// create mapped triples file
+			TripleCompressionResult tripleCompressionResult;
+			TriplesPrivate triples = hdt.getTriples();
+			TripleComponentOrder order = triples.getOrder();
+			try (CompressTripleReader tripleReader = new CompressTripleReader(new FileInputStream(compressionResult.getTriples()))) {
+				MapCompressTripleMerger tripleMapper = new MapCompressTripleMerger(baseName, new FileTripleIDIterator(tripleReader.asIterator(), chunkSize), mapper, listener, order);
+				tripleCompressionResult = tripleMapper.merge(workers, compressMode);
+			} catch (TreeWorker.TreeWorkerException | InterruptedException e) {
+				throw new ParserException(e);
+			}
+
+			try (tripleCompressionResult) {
+				ListenerUtil.notify(listener, "Create bit triples", 80, 100);
+				// create bit triples and load the triples
+				TempTriples tempTriples = tripleCompressionResult.getTriples();
+				triples.load(tempTriples, listener);
+				tempTriples.close();
+
+				// completed the triples, delete the mapper
+				mapper.delete();
+			}
+
+			ListenerUtil.notify(listener, "Create HDT header", 90, 100);
+			// header
+			hdt.populateHeaderStructure(hdt.getBaseURI());
+			hdt.getHeader().insert("_:statistics", HDTVocabulary.ORIGINAL_SIZE, triplesFile.getTotalSize());
+
+			ListenerUtil.notify(listener, "HDT completed", 99, 100);
+			// return the HDT
+			return hdt;
+		} finally {
+			ListenerUtil.notify(listener, "Clearing disk", 100,100);
+			IOUtil.deleteDirRecurse(Path.of(baseName));
 		}
-
-		ListenerUtil.notify(listener, "Create bit triples", 80, 100);
-		// create bit triples and load the triples
-		TempTriples tempTriples = tripleCompressionResult.getTriples();
-		triples.load(tempTriples, listener);
-		tempTriples.close();
-
-		// completed the triples, delete the mapper
-		mapper.delete();
-		tripleCompressionResult.close();
-
-		ListenerUtil.notify(listener, "Create HDT header", 90, 100);
-		// header
-		hdt.populateHeaderStructure(hdt.getBaseURI());
-
-		ListenerUtil.notify(listener, "HDT completed", 100, 100);
-		// return the HDT
-		return hdt;
 	}
 
 	@Override

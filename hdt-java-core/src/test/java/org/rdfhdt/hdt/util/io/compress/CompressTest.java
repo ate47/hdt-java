@@ -15,7 +15,10 @@ import java.util.Set;
 public class CompressTest {
 	public static void assertCharSequenceEquals(String location, CharSequence s1, CharSequence s2) {
 		if (CharSequenceComparator.getInstance().compare(s1, s2) != 0) {
-			throw new AssertionError(location + ", excepted: " + s1 + " != actual: " + s2);
+			throw new AssertionError(location +
+					"\nexcepted: " + s1 +
+					"\nactual:   " + s2
+			);
 		}
 	}
 

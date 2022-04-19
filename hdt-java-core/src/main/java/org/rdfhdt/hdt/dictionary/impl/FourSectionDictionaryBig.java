@@ -88,16 +88,14 @@ public class FourSectionDictionaryBig extends BaseDictionary {
 	@Override
 	public void loadAsync(TempDictionary other, ProgressListener listener) throws InterruptedException {
 		IntermediateListener iListener = new IntermediateListener(null);
-		ExceptionThread suReader = new ExceptionThread(() -> subjects.load(other.getSubjects(), iListener), "FourSecSAsyncReaderS");
-		ExceptionThread shReader = new ExceptionThread(() -> shared.load(other.getShared(), iListener), "FourSecSAsyncReaderSh");
-		ExceptionThread obReader = new ExceptionThread(() -> objects.load(other.getObjects(), iListener), "FourSecSAsyncReaderO");
-		suReader.start();
-		shReader.start();
-		obReader.start();
-		suReader.joinAndCrashIfRequired();
-		shReader.joinAndCrashIfRequired();
-		obReader.joinAndCrashIfRequired();
-		predicates.load(other.getPredicates(), iListener);
+		new ExceptionThread(() -> predicates.load(other.getPredicates(), iListener), "FourSecSAsyncReaderP")
+				.attach(
+						new ExceptionThread(() -> subjects.load(other.getSubjects(), iListener), "FourSecSAsyncReaderS"),
+						new ExceptionThread(() -> shared.load(other.getShared(), iListener), "FourSecSAsyncReaderSh"),
+						new ExceptionThread(() -> objects.load(other.getObjects(), iListener), "FourSecSAsyncReaderO")
+				)
+				.startAll()
+				.joinAndCrashIfRequired();
 	}
 
 	/* (non-Javadoc)
