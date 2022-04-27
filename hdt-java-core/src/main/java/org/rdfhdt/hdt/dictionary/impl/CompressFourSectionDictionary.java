@@ -8,27 +8,32 @@ import org.rdfhdt.hdt.enums.TripleComponentRole;
 import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult;
 import org.rdfhdt.hdt.iterator.utils.MapIterator;
-import org.rdfhdt.hdt.iterator.utils.SinglePipedIterator;
+import org.rdfhdt.hdt.iterator.utils.PipedCopyIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.triples.TempTriples;
 import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressUtil;
+import org.rdfhdt.hdt.util.string.ByteStringUtil;
 import org.rdfhdt.hdt.util.string.CharSequenceComparator;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.util.Comparator;
 import java.util.Iterator;
 
+/**
+ * Version of temp dictionary create the four sections from the SPO compressed sections result, should be loaded in a
+ * async way with {@link org.rdfhdt.hdt.dictionary.DictionaryPrivate#loadAsync(org.rdfhdt.hdt.dictionary.TempDictionary, org.rdfhdt.hdt.listener.ProgressListener)}
+ * @author Antoine Willerval
+ */
 public class CompressFourSectionDictionary implements TempDictionary {
 	private final TempDictionarySection subject;
 	private final TempDictionarySection predicate;
 	private final TempDictionarySection object;
 	private final TempDictionarySection shared;
 
-	private static void sendPiped(IndexedNode value, SinglePipedIterator<IndexedNode> pipe) {
+	private static void sendPiped(IndexedNode value, PipedCopyIterator<IndexedNode> pipe) {
 		pipe.addElement(new IndexedNode(value.getNode(), value.getIndex()));
 	}
 
@@ -55,9 +60,9 @@ public class CompressFourSectionDictionary implements TempDictionary {
 		long shareds = compressionResult.getSharedCount();
 
 		// iterator to pipe to the s p o sh
-		SinglePipedIterator<IndexedNode> subject = new SinglePipedIterator<>(new IndexedNodeParser());
-		SinglePipedIterator<IndexedNode> object = new SinglePipedIterator<>(new IndexedNodeParser());
-		SinglePipedIterator<SharedNode> shared = new SinglePipedIterator<>(new SharedNodeParser());
+		PipedCopyIterator<IndexedNode> subject = new PipedCopyIterator<>(new IndexedNodeParser());
+		PipedCopyIterator<IndexedNode> object = new PipedCopyIterator<>(new IndexedNodeParser());
+		PipedCopyIterator<SharedNode> shared = new PipedCopyIterator<>(new SharedNodeParser());
 		Comparator<CharSequence> comparator = CharSequenceComparator.getInstance();
 		Thread readingThread = new Thread(() -> {
 			sharedLoop:
@@ -193,12 +198,12 @@ public class CompressFourSectionDictionary implements TempDictionary {
 		void onObject(long preMapId, long newMapId);
 	}
 
-	private static class SharedNodeParser implements SinglePipedIterator.Parser<SharedNode> {
+	private static class SharedNodeParser implements PipedCopyIterator.Parser<SharedNode> {
 		@Override
 		public void write(SharedNode sharedNode, OutputStream out) throws IOException {
 			VByte.encode(out, sharedNode.indexSubject);
 			VByte.encode(out, sharedNode.indexObject);
-			byte[] bytes = sharedNode.node.toString().getBytes(Charset.defaultCharset());
+			byte[] bytes = sharedNode.node.toString().getBytes(ByteStringUtil.STRING_ENCODING);
 			VByte.encode(out, bytes.length);
 			out.write(bytes);
 		}
@@ -209,14 +214,14 @@ public class CompressFourSectionDictionary implements TempDictionary {
 			long indexObject = VByte.decode(in);
 			int size = (int) VByte.decode(in);
 			byte[] bytes = IOUtil.readBuffer(in, size, null);
-			return new SharedNode(indexSubject, indexObject, new String(bytes, Charset.defaultCharset()));
+			return new SharedNode(indexSubject, indexObject, new String(bytes, ByteStringUtil.STRING_ENCODING));
 		}
 	}
-	private static class IndexedNodeParser implements SinglePipedIterator.Parser<IndexedNode> {
+	private static class IndexedNodeParser implements PipedCopyIterator.Parser<IndexedNode> {
 		@Override
 		public void write(IndexedNode indexedNode, OutputStream out) throws IOException {
 			VByte.encode(out, indexedNode.getIndex());
-			byte[] bytes = indexedNode.getNode().toString().getBytes(Charset.defaultCharset());
+			byte[] bytes = indexedNode.getNode().toString().getBytes(ByteStringUtil.STRING_ENCODING);
 			VByte.encode(out, bytes.length);
 			out.write(bytes);
 		}
@@ -226,7 +231,7 @@ public class CompressFourSectionDictionary implements TempDictionary {
 			long sid = VByte.decode(in);
 			int size = (int) VByte.decode(in);
 			byte[] bytes = IOUtil.readBuffer(in, size, null);
-			return new IndexedNode(new String(bytes, Charset.defaultCharset()), sid);
+			return new IndexedNode(new String(bytes, ByteStringUtil.STRING_ENCODING), sid);
 		}
 	}
 	private static class SharedNode {

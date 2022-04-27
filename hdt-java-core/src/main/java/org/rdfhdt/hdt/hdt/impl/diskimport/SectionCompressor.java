@@ -5,7 +5,10 @@ import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.triples.IndexedTriple;
 import org.rdfhdt.hdt.triples.TripleString;
+import org.rdfhdt.hdt.util.ParallelSortableArrayList;
 import org.rdfhdt.hdt.util.concurrent.TreeWorker;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
+import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressTripleWriter;
 import org.rdfhdt.hdt.util.io.compress.CompressUtil;
 import org.rdfhdt.hdt.util.listener.ListenerUtil;
@@ -13,38 +16,41 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Tree worker object to compress the section of a triple stream into 3 sections (SPO) and a compress triple file
+ * @author Antoine Willerval
+ */
 public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject<SectionCompressor.TripleFile> {
 	private static final AtomicInteger ID_INC = new AtomicInteger();
 	private static final Logger log = LoggerFactory.getLogger(SectionCompressor.class);
 
-	private final String baseFileName;
+	private final CloseSuppressPath baseFileName;
 	private final FileTripleIterator source;
 	private final CompressTripleWriter writer;
 	private boolean done;
-	private final File triplesOutput;
+	private final CloseSuppressPath triplesOutput;
 	private final ProgressListener listener;
 	private long triples = 0;
 	private final IdFetcher subjectIdFetcher = new IdFetcher();
 	private final IdFetcher predicateIdFetcher = new IdFetcher();
 	private final IdFetcher objectIdFetcher = new IdFetcher();
+	private final ParallelSortableArrayList<IndexedNode> subjects = new ParallelSortableArrayList<>(IndexedNode[].class);
+	private final ParallelSortableArrayList<IndexedNode> predicates = new ParallelSortableArrayList<>(IndexedNode[].class);
+	private final ParallelSortableArrayList<IndexedNode> objects = new ParallelSortableArrayList<>(IndexedNode[].class);
 
-	public SectionCompressor(String baseFileName, FileTripleIterator source, ProgressListener listener) throws IOException {
+	public SectionCompressor(CloseSuppressPath baseFileName, FileTripleIterator source, ProgressListener listener) throws IOException {
 		this.source = source;
 		this.listener = listener;
 		this.baseFileName = baseFileName;
-		this.triplesOutput = new File(baseFileName, "triples.raw");
-		this.writer = new CompressTripleWriter(new FileOutputStream(triplesOutput));
+		this.triplesOutput = baseFileName.resolve("triple.raw");
+		this.writer = new CompressTripleWriter(triplesOutput.openOutputStream(true));
 	}
 
 	/**
@@ -58,9 +64,9 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				return null;
 			}
 
-			List<IndexedNode> subjects = new ArrayList<>();
-			List<IndexedNode> predicates = new ArrayList<>();
-			List<IndexedNode> objects = new ArrayList<>();
+			subjects.clear();
+			predicates.clear();
+			objects.clear();
 			IndexedNode lastS = IndexedNode.UNKNOWN, lastP = IndexedNode.UNKNOWN, lastO = IndexedNode.UNKNOWN;
 			IndexedTriple triple = new IndexedTriple();
 			while (source.hasNext()) {
@@ -72,7 +78,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				TripleString next = source.next();
 				// get indexed mapped char sequence
 				CharSequence sc = convertSubject(next.getSubject());
-				long s = subjectIdFetcher.getNodeId(sc);
+				long s = subjectIdFetcher.getNodeId();
 				if (s != lastS.getIndex()) {
 					// create new node if not the same as the previous one
 					subjects.add(lastS = new IndexedNode(sc, s));
@@ -80,7 +86,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 
 				// get indexed mapped char sequence
 				CharSequence pc = convertPredicate(next.getPredicate());
-				long p = predicateIdFetcher.getNodeId(pc);
+				long p = predicateIdFetcher.getNodeId();
 				if (p != lastP.getIndex()) {
 					// create new node if not the same as the previous one
 					predicates.add(lastP = new IndexedNode(pc, p));
@@ -88,7 +94,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 
 				// get indexed mapped char sequence
 				CharSequence oc = convertObject(next.getObject());
-				long o = objectIdFetcher.getNodeId(oc);
+				long o = objectIdFetcher.getNodeId();
 				if (o != lastO.getIndex()) {
 					// create new node if not the same as the previous one
 					objects.add(lastO = new IndexedNode(oc, o));
@@ -104,18 +110,24 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 			ListenerUtil.notify(listener, "Writing sections", triples, 100);
 
 			int fid = ID_INC.incrementAndGet();
-			TripleFile sections = new TripleFile(new File(baseFileName, "section" + fid + ".raw"));
-			try (OutputStream stream = sections.openWSubject()) {
-				subjects.sort(IndexedNode::compareTo);
-				CompressUtil.writeCompressedSection(subjects, stream);
-			}
-			try (OutputStream stream = sections.openWPredicate()) {
-				predicates.sort(IndexedNode::compareTo);
-				CompressUtil.writeCompressedSection(predicates, stream);
-			}
-			try (OutputStream stream = sections.openWObject()) {
-				objects.sort(IndexedNode::compareTo);
-				CompressUtil.writeCompressedSection(objects, stream);
+			TripleFile sections = new TripleFile(baseFileName.resolve("section" + fid + ".raw"));
+			try {
+				try (OutputStream stream = sections.openWSubject()) {
+					subjects.parallelSort(IndexedNode::compareTo);
+					CompressUtil.writeCompressedSection(subjects, stream);
+				}
+				try (OutputStream stream = sections.openWPredicate()) {
+					predicates.parallelSort(IndexedNode::compareTo);
+					CompressUtil.writeCompressedSection(predicates, stream);
+				}
+				try (OutputStream stream = sections.openWObject()) {
+					objects.parallelSort(IndexedNode::compareTo);
+					CompressUtil.writeCompressedSection(objects, stream);
+				}
+			} finally {
+				subjects.clear();
+				predicates.clear();
+				objects.clear();
 			}
 			return sections;
 		} catch (IOException e) {
@@ -136,7 +148,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 		int fid = ID_INC.incrementAndGet();
 		TripleFile sections;
 		try {
-			sections = new TripleFile(new File(baseFileName, "section" + fid + ".raw"));
+			sections = new TripleFile(baseFileName.resolve("section" + fid + ".raw"));
 
 			// subjects
 			try (OutputStream output = sections.openWSubject();
@@ -175,7 +187,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 	 */
 	@Override
 	public void delete(SectionCompressor.TripleFile f) {
-		f.delete();
+		f.close();
 	}
 
 	@Override
@@ -184,7 +196,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 	}
 
 	/*
-	 * TODO: create a factory and override these methods with the hdt spec
+	 * FIXME: create a factory and override these methods with the hdt spec
 	 */
 
 	/**
@@ -253,7 +265,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				files.add(f);
 			}
 		} catch (RuntimeException e) {
-			files.forEach(TripleFile::delete);
+			IOUtil.closeAll(files);
 			throw e;
 		}
 		return new CompressionResultPartial(files, triplesOutput, triples);
@@ -286,66 +298,90 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 		}
 	}
 
-	public static class TripleFile {
-		public final File root;
-		public final File s;
-		public final File p;
-		public final File o;
+	/**
+	 * A triple directory, contains 3 files, subject, predicate and object
+	 * @author Antoine Willerval
+	 */
+	public static class TripleFile implements Closeable {
+		public final CloseSuppressPath root;
+		public final CloseSuppressPath s;
+		public final CloseSuppressPath p;
+		public final CloseSuppressPath o;
 
-		public TripleFile(File root) throws IOException {
+		public TripleFile(CloseSuppressPath root) throws IOException {
 			this.root = root;
-			this.s = new File(root, "subject");
-			this.p = new File(root, "predicate");
-			this.o = new File(root, "object");
+			this.s = root.resolve("subject");
+			this.p = root.resolve("predicate");
+			this.o = root.resolve("object");
 
-			Files.createDirectories(root.toPath());
+			root.mkdirs();
 		}
 
-		public void delete() {
+		/**
+		 * delete the directory
+		 */
+		@Override
+		public void close() {
 			try {
-				Files.deleteIfExists(s.toPath());
-				Files.deleteIfExists(p.toPath());
-				Files.deleteIfExists(o.toPath());
-				Files.delete(root.toPath());
+				IOUtil.closeAll(s, p, o, root);
 			} catch (IOException e) {
 				log.warn("Can't delete sections {}: {}", root, e);
 			}
 		}
 
+		/**
+		 * @return open a write stream to the subject file
+		 * @throws IOException can't open the stream
+		 */
 		public OutputStream openWSubject() throws IOException {
-			return new FileOutputStream(s);
+			return s.openOutputStream(true);
 		}
 
+		/**
+		 * @return open a write stream to the predicate file
+		 * @throws IOException can't open the stream
+		 */
 		public OutputStream openWPredicate() throws IOException {
-			return new FileOutputStream(p);
+			return p.openOutputStream(true);
 		}
 
+		/**
+		 * @return open a write stream to the object file
+		 * @throws IOException can't open the stream
+		 */
 		public OutputStream openWObject() throws IOException {
-			return new FileOutputStream(o);
+			return o.openOutputStream(true);
 		}
 
+		/**
+		 * @return open a read stream to the subject file
+		 * @throws IOException can't open the stream
+		 */
 		public InputStream openRSubject() throws IOException {
-			return new FileInputStream(s);
+			return s.openInputStream(true);
 		}
 
+		/**
+		 * @return open a read stream to the predicate file
+		 * @throws IOException can't open the stream
+		 */
 		public InputStream openRPredicate() throws IOException {
-			return new FileInputStream(p);
+			return p.openInputStream(true);
 		}
 
+		/**
+		 * @return open a read stream to the object file
+		 * @throws IOException can't open the stream
+		 */
 		public InputStream openRObject() throws IOException {
-			return new FileInputStream(o);
+			return o.openInputStream(true);
 		}
 	}
 
 	private static class IdFetcher {
-		private CharSequence previous;
 		private long id = 1;
 
-		public long getNodeId(CharSequence sec) {
-			if (sec.equals(previous)) {
-				return id;
-			}
-			previous = sec;
+		public long getNodeId() {
 			return ++id;
 		}
 

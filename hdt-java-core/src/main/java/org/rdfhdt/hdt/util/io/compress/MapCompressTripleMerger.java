@@ -10,32 +10,36 @@ import org.rdfhdt.hdt.iterator.utils.FileTripleIDIterator;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.triples.TripleIDComparator;
+import org.rdfhdt.hdt.util.ParallelSortableArrayList;
 import org.rdfhdt.hdt.util.concurrent.TreeWorker;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
+import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.listener.ListenerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<File> {
+/**
+ * TreeWorkerObject implementation to map and merge tripleID from a compress triple file
+ * @author Antoine Willerval
+ */
+public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<CloseSuppressPath> {
 	private static final Logger log = LoggerFactory.getLogger(MapCompressTripleMerger.class);
 	private final AtomicInteger FID = new AtomicInteger();
-	private final String baseFileName;
+	private final CloseSuppressPath baseFileName;
 	private final FileTripleIDIterator source;
 	private final CompressTripleMapper mapper;
 	private final ProgressListener listener;
 	private final TripleComponentOrder order;
 	private boolean done;
 	private long triplesCount = 0;
+	private final ParallelSortableArrayList<TripleID> tripleIDS = new ParallelSortableArrayList<>(TripleID[].class);
 
-	public MapCompressTripleMerger(String baseFileName, FileTripleIDIterator it, CompressTripleMapper mapper, ProgressListener listener, TripleComponentOrder order) {
+	public MapCompressTripleMerger(CloseSuppressPath baseFileName, FileTripleIDIterator it, CompressTripleMapper mapper, ProgressListener listener, TripleComponentOrder order) {
 		this.baseFileName = baseFileName;
 		this.source = it;
 		this.mapper = mapper;
@@ -44,14 +48,14 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<File
 	}
 
 	@Override
-	public File construct(File a, File b) {
+	public CloseSuppressPath construct(CloseSuppressPath a, CloseSuppressPath b) {
 		try {
 			int fid = FID.incrementAndGet();
-			File triplesFiles = new File(baseFileName, "triples" + fid + ".raw");
+			CloseSuppressPath triplesFiles = baseFileName.resolve( "triples" + fid + ".raw");
 			try (
-					CompressTripleWriter w = new CompressTripleWriter(new FileOutputStream(triplesFiles));
-					CompressTripleReader r1 = new CompressTripleReader(new FileInputStream(a));
-					CompressTripleReader r2 = new CompressTripleReader(new FileInputStream(b))) {
+					CompressTripleWriter w = new CompressTripleWriter(triplesFiles.openOutputStream(true));
+					CompressTripleReader r1 = new CompressTripleReader(a.openInputStream(true));
+					CompressTripleReader r2 = new CompressTripleReader(b.openInputStream(true))) {
 				CompressTripleMergeIterator mergeIterator = new CompressTripleMergeIterator(r1, r2, order);
 				mergeIterator.forEachRemaining(w::appendTriple);
 			}
@@ -62,29 +66,29 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<File
 	}
 
 	@Override
-	public void delete(File f) {
+	public void delete(CloseSuppressPath f) {
 		try {
-			Files.deleteIfExists(f.toPath());
+			f.close();
 		} catch (IOException e) {
 			log.warn("Can't delete triple file {}", f, e);
 		}
 	}
 
 	@Override
-	public File get() {
+	public CloseSuppressPath get() {
 		try {
 			if (done || !source.hasNewFile()) {
 				done = true;
 				return null;
 			}
-			List<TripleID> triples = new ArrayList<>();
+			tripleIDS.clear();
 			while (source.hasNext()) {
-				if (triples.size() == Integer.MAX_VALUE - 5) {
+				if (tripleIDS.size() == Integer.MAX_VALUE - 5) {
 					source.forceNewFile();
 					continue;
 				}
 				TripleID next = source.next();
-				triples.add(new TripleID(
+				tripleIDS.add(new TripleID(
 						mapper.extractSubject(next.getSubject()),
 						mapper.extractPredicate(next.getPredicate()),
 						mapper.extractObjects(next.getObject())
@@ -93,18 +97,20 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<File
 				ListenerUtil.notifyCond(listener, "Merging triples", triplesCount, triplesCount, 100);
 			}
 
-			triples.sort(TripleIDComparator.getComparator(order));
+			tripleIDS.parallelSort(TripleIDComparator.getComparator(order));
 			int fid = FID.incrementAndGet();
-			File triplesFiles = new File(baseFileName, "triples" + fid + ".raw");
-			try (CompressTripleWriter w = new CompressTripleWriter(new FileOutputStream(triplesFiles))) {
+			CloseSuppressPath triplesFiles = baseFileName.resolve("triples" + fid + ".raw");
+			try (CompressTripleWriter w = new CompressTripleWriter(triplesFiles.openOutputStream(true))) {
 				TripleID prev = new TripleID(-1,-1,-1);
-				for (TripleID triple : triples) {
+				for (TripleID triple : tripleIDS) {
 					if (prev.match(triple)) {
 						continue;
 					}
 					prev.setAll(triple.getSubject(), triple.getPredicate(), triple.getObject());
 					w.appendTriple(triple);
 				}
+			} finally {
+				tripleIDS.clear();
 			}
 			return triplesFiles;
 		} catch (IOException e) {
@@ -112,35 +118,51 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<File
 		}
 	}
 
+	/**
+	 * merge these triples into a file
+	 * @param workers number of worker
+	 * @return result
+	 * @throws TreeWorker.TreeWorkerException TreeWorker error
+	 * @throws InterruptedException thread interruption
+	 * @throws IOException io error
+	 */
 	public TripleCompressionResult mergeToFile(int workers) throws TreeWorker.TreeWorkerException, InterruptedException, IOException {
 		// force to create the first file
-		TreeWorker<File> treeWorker = new TreeWorker<>(this, workers);
+		TreeWorker<CloseSuppressPath> treeWorker = new TreeWorker<>(this, workers);
 		treeWorker.start();
 		// wait for the workers to merge the sections and create the triples
-		File triples = treeWorker.waitToComplete();
+		CloseSuppressPath triples = treeWorker.waitToComplete();
 		return new TripleCompressionResultFile(triplesCount, triples, order);
 	}
 
+	/**
+	 * merge these triples while reading them, increase the memory usage
+	 * @return result
+	 * @throws IOException io error
+	 */
 	public TripleCompressionResult mergeToPartial() throws IOException {
-		File f;
-		List<File> files = new ArrayList<>();
+		CloseSuppressPath f;
+		List<CloseSuppressPath> files = new ArrayList<>();
 		try {
 			while ((f = get()) != null) {
 				files.add(f);
 			}
 		} catch (RuntimeException e) {
-			files.forEach(ff -> {
-				try {
-					Files.deleteIfExists(ff.toPath());
-				} catch (IOException ee) {
-					log.warn("Can't delete " + ff + " " + ee);
-				}
-			});
+			IOUtil.closeAll(files);
 			throw e;
 		}
 		return new TripleCompressionResultPartial(files, triplesCount, order);
 	}
 
+	/**
+	 * merge the triples into a result
+	 * @param workers number of workers (complete mode)
+	 * @param mode the mode of merging
+	 * @return result
+	 * @throws TreeWorker.TreeWorkerException TreeWorker error (complete mode)
+	 * @throws InterruptedException thread interruption (complete mode)
+	 * @throws IOException io error
+	 */
 	public TripleCompressionResult merge(int workers, String mode) throws TreeWorker.TreeWorkerException, InterruptedException, IOException {
 		if (mode == null) {
 			mode = "";

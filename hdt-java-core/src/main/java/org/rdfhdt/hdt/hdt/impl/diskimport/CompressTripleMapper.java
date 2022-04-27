@@ -2,58 +2,48 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.dictionary.impl.CompressFourSectionDictionary;
 import org.rdfhdt.hdt.util.disk.LongArrayDisk;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
+import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 
+/**
+ * Map a compress triple file to long array map files
+ * @author Antoine Willerval
+ */
 public class CompressTripleMapper implements CompressFourSectionDictionary.NodeConsumer {
 	private static final Logger log = LoggerFactory.getLogger(CompressTripleMapper.class);
 	private final LongArrayDisk subjects;
 	private final LongArrayDisk predicates;
 	private final LongArrayDisk objects;
-	private final File locationSubjects;
-	private final File locationPredicates;
-	private final File locationObjects;
+	private final CloseSuppressPath locationSubjects;
+	private final CloseSuppressPath locationPredicates;
+	private final CloseSuppressPath locationObjects;
 	private long shared = -1;
 
-	public CompressTripleMapper(String location, long tripleCount) {
-		File l = new File(location);
-		locationSubjects = new File(l, "map_subjects");
-		locationPredicates = new File(l, "map_predicates");
-		locationObjects = new File(l, "map_objects");
-		subjects = new LongArrayDisk(locationSubjects.getAbsolutePath(), tripleCount + 2);
-		predicates = new LongArrayDisk(locationPredicates.getAbsolutePath(), tripleCount + 2);
-		objects = new LongArrayDisk(locationObjects.getAbsolutePath(), tripleCount + 2);
+	public CompressTripleMapper(CloseSuppressPath location, long tripleCount) {
+		locationSubjects = location.resolve("map_subjects");
+		locationPredicates = location.resolve("map_predicates");
+		locationObjects = location.resolve("map_objects");
+		subjects = new LongArrayDisk(locationSubjects.toAbsolutePath().toString(), tripleCount + 2);
+		predicates = new LongArrayDisk(locationPredicates.toAbsolutePath().toString(), tripleCount + 2);
+		objects = new LongArrayDisk(locationObjects.toAbsolutePath().toString(), tripleCount + 2);
 	}
 
+	/**
+	 * delete the map files and the location files
+	 */
 	public void delete() {
 		try {
-			try {
-				subjects.close();
-			} finally {
-				try {
-					predicates.close();
-				} finally {
-					objects.close();
-				}
-			}
+			IOUtil.closeAll(subjects, predicates, objects);
 		} catch (IOException e) {
 			log.warn("Can't close triple map array", e);
 		}
 		try {
-			try {
-				Files.deleteIfExists(locationSubjects.toPath());
-			} finally {
-				try {
-					Files.deleteIfExists(locationPredicates.toPath());
-				} finally {
-					Files.deleteIfExists(locationObjects.toPath());
-				}
-			}
+			IOUtil.closeAll(locationSubjects, locationPredicates, locationObjects);
 		} catch (IOException e) {
 			log.warn("Can't delete triple map array files", e);
 		}
@@ -128,7 +118,9 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 		long data = array.get(id);
 		// loop over the duplicates
 		while (CompressUtil.isDuplicated(data)) {
-			data = array.get(CompressUtil.getDuplicatedIndex(data));
+			long remap = array.get(CompressUtil.getDuplicatedIndex(data));
+			assert remap != data : "remap and data are the same!";
+			data = remap;
 		}
 		// compute shared if required
 		return CompressUtil.computeSharedNode(data, shared);

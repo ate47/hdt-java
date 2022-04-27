@@ -1,10 +1,11 @@
 package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
+import org.rdfhdt.hdt.options.HDTOptionsKeys;
 import org.rdfhdt.hdt.triples.IndexedNode;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 
 /**
@@ -16,17 +17,17 @@ public interface CompressionResult extends Closeable {
 	 * partial mode for config
 	 * @see org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResultPartial
 	 */
-	String COMPRESSION_MODE_PARTIAL = "compressionPartial";
+	String COMPRESSION_MODE_PARTIAL = HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_VALUE_PARTIAL;
 	/**
 	 * complete mode for config
 	 * @see org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResultFile
 	 */
-	String COMPRESSION_MODE_COMPLETE = "compressionComplete";
+	String COMPRESSION_MODE_COMPLETE = HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_VALUE_COMPLETE;
 
 	/**
 	 * @return the triples file
 	 */
-	File getTriples();
+	CloseSuppressPath getTriples();
 	/**
 	 * @return the number of triple
 	 */
@@ -63,5 +64,5 @@ public interface CompressionResult extends Closeable {
 	/**
 	 * delete data associated with this result
 	 */
-	void delete();
+	void delete() throws IOException;
 }

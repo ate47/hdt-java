@@ -27,8 +27,8 @@ import java.util.Iterator;
  * @author Antoine Willerval
  */
 public class OneReadTempTriples implements TempTriples {
-	private final IteratorTripleID iterator;
-	private final TripleComponentOrder order;
+	private IteratorTripleID iterator;
+	private TripleComponentOrder order;
 
 	public OneReadTempTriples(Iterator<TripleID> iterator, TripleComponentOrder order, long triples) {
 		this.iterator = new SimpleIteratorTripleID(iterator, order, triples);
@@ -124,7 +124,13 @@ public class OneReadTempTriples implements TempTriples {
 
 	@Override
 	public void load(TempTriples input, ProgressListener listener) {
-		throw new NotImplementedException();
+		if (input instanceof OneReadTempTriples) {
+			OneReadTempTriples input2 = (OneReadTempTriples) input;
+			this.iterator = input2.iterator;
+			this.order = input2.order;
+		} else {
+			throw new NotImplementedException();
+		}
 	}
 
 	@Override

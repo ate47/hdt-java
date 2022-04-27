@@ -8,10 +8,9 @@ import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.iterator.utils.MapIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
-import org.rdfhdt.hdt.util.io.compress.CompressNodeTest;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.compress.CompressTest;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -92,6 +91,8 @@ public class CompressFourSectionDictionaryTest {
 		private final CharSequence[] subjects;
 		private final CharSequence[] predicates;
 		private final CharSequence[] objects;
+		// used to create fake id to avoid duplicate assert error
+		private int sid, pid, oid;
 
 		public TestCompressionResult(CharSequence[] subjects, CharSequence[] predicates, CharSequence[] objects) {
 			this.subjects = subjects;
@@ -100,7 +101,7 @@ public class CompressFourSectionDictionaryTest {
 		}
 
 		@Override
-		public File getTriples() {
+		public CloseSuppressPath getTriples() {
 			throw new NotImplementedException();
 		}
 
@@ -111,17 +112,17 @@ public class CompressFourSectionDictionaryTest {
 
 		@Override
 		public ExceptionIterator<IndexedNode, IOException> getSubjects() {
-			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(subjects).iterator(), s -> new IndexedNode(s, 0)));
+			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(subjects).iterator(), s -> new IndexedNode(s, sid++)));
 		}
 
 		@Override
 		public ExceptionIterator<IndexedNode, IOException> getPredicates() {
-			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(predicates).iterator(), s -> new IndexedNode(s, 0)));
+			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(predicates).iterator(), s -> new IndexedNode(s, pid++)));
 		}
 
 		@Override
 		public ExceptionIterator<IndexedNode, IOException> getObjects() {
-			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(objects).iterator(), s -> new IndexedNode(s, 0)));
+			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(objects).iterator(), s -> new IndexedNode(s, oid++)));
 		}
 
 		@Override

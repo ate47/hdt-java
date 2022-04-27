@@ -6,6 +6,7 @@ import org.rdfhdt.hdt.hdt.HDT;
 import org.rdfhdt.hdt.hdt.HDTManager;
 import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.triples.TripleString;
+import org.rdfhdt.hdt.util.string.ByteStringUtil;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.util.Random;
 
 public class LargeFakeDataSetStreamSupplier {
 
-	private static final Charset DEFAULT_CHARSET = Charset.defaultCharset();
+	private static final Charset DEFAULT_CHARSET = ByteStringUtil.STRING_ENCODING;
 
 	/**
 	 * create a lowercase name from a number, to create string without any number in it
@@ -64,6 +65,7 @@ public class LargeFakeDataSetStreamSupplier {
 	private final long maxSize;
 	private final long maxTriples;
 	public int maxFakeType = 10;
+	public int maxLiteralSize = 2;
 	public int maxElementSplit = Integer.MAX_VALUE;
 
 	private LargeFakeDataSetStreamSupplier(long maxSize, long maxTriples, long seed) {
@@ -130,14 +132,22 @@ public class LargeFakeDataSetStreamSupplier {
 		if (random.nextBoolean()) {
 			return createPredicate();
 		}
-
-		String text = "\"" + stringNameOfInt(random.nextInt(maxElementSplit)) + "\"";
-		if (random.nextBoolean()) {
+		int size = random.nextInt(maxLiteralSize);
+		StringBuilder litText = new StringBuilder();
+		for (int i = 0; i < size; i++) {
+			litText.append(stringNameOfInt(random.nextInt(maxElementSplit))).append(" ");
+		}
+		String text = "\"" + litText + "\"";
+		int litType = random.nextInt(3);
+		if (litType == 1) {
 			// language node
 			return text + "@" + stringNameOfInt(random.nextInt(maxElementSplit));
-		} else {
+		} else if (litType == 2) {
 			// typed node
 			return text + "^^<" + createType() + ">";
+		} else {
+			// no type/language node
+			return text;
 		}
 	}
 
@@ -193,5 +203,11 @@ public class LargeFakeDataSetStreamSupplier {
 	public LargeFakeDataSetStreamSupplier withMaxElementSplit(int maxElementSplit) {
 		this.maxElementSplit = maxElementSplit;
 		return this;
+	}
+
+	public LargeFakeDataSetStreamSupplier withMaxLiteralSize(int maxLiteralSize) {
+		this.maxLiteralSize = maxLiteralSize;
+		return this;
+
 	}
 }

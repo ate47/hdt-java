@@ -1,6 +1,7 @@
 package org.rdfhdt.hdt.iterator.utils;
 
 import org.rdfhdt.hdt.triples.TripleString;
+import org.rdfhdt.hdt.util.string.ByteStringUtil;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -15,11 +16,9 @@ import java.util.function.ToIntFunction;
  * @author Antoine Willerval
  */
 public class FileTripleIterator extends FileChunkIterator<TripleString> {
-	private static final Charset DEFAULT_CHARSET = Charset.defaultCharset();
-
 	private static long estimateSize(TripleString tripleString) {
 		try {
-			return tripleString.asNtriple().toString().getBytes(DEFAULT_CHARSET).length;
+			return tripleString.asNtriple().toString().getBytes(ByteStringUtil.STRING_ENCODING).length;
 		} catch (IOException e) {
 			throw new RuntimeException("Can't estimate the size of the triple " + tripleString, e);
 		}

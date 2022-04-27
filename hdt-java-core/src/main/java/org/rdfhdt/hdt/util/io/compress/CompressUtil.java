@@ -165,6 +165,7 @@ public class CompressUtil {
 				CharSequence next = node.getNode();
 				if (CharSequenceComparator.getInstance().compare(prev, next) == 0) {
 					// same as previous, ignore
+					assert this.id != node.getIndex() : "same index and prevIndex";
 					duplicatedNodeConsumer.onDuplicated(this.id, node.getIndex());
 					continue;
 				}

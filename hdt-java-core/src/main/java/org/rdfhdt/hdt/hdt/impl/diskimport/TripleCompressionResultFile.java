@@ -3,22 +3,26 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 import org.rdfhdt.hdt.enums.TripleComponentOrder;
 import org.rdfhdt.hdt.triples.TempTriples;
 import org.rdfhdt.hdt.triples.impl.OneReadTempTriples;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
+import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressTripleReader;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 
+/**
+ * Implementation of {@link org.rdfhdt.hdt.hdt.impl.diskimport.TripleCompressionResult} for full file reading
+ *
+ * @author Antoine Willerval
+ */
 public class TripleCompressionResultFile implements TripleCompressionResult {
 	private final long tripleCount;
 	private final CompressTripleReader reader;
 	private final TripleComponentOrder order;
-	private final File triples;
+	private final CloseSuppressPath triples;
 
-	public TripleCompressionResultFile(long tripleCount, File triples, TripleComponentOrder order) throws IOException {
+	public TripleCompressionResultFile(long tripleCount, CloseSuppressPath triples, TripleComponentOrder order) throws IOException {
 		this.tripleCount = tripleCount;
-		this.reader = new CompressTripleReader(new FileInputStream(triples));
+		this.reader = new CompressTripleReader(triples.openInputStream(true));
 		this.order = order;
 		this.triples = triples;
 	}
@@ -35,10 +39,6 @@ public class TripleCompressionResultFile implements TripleCompressionResult {
 
 	@Override
 	public void close() throws IOException {
-		try {
-			reader.close();
-		} finally {
-			Files.deleteIfExists(triples.toPath());
-		}
+		IOUtil.closeAll(reader, triples);
 	}
 }

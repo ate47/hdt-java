@@ -29,9 +29,9 @@ package org.rdfhdt.hdt.rdf;
 
 import org.rdfhdt.hdt.enums.RDFNotation;
 import org.rdfhdt.hdt.exceptions.NotImplementedException;
+import org.rdfhdt.hdt.iterator.utils.PipedCopyIterator;
 import org.rdfhdt.hdt.rdf.parsers.RDFParserDir;
 import org.rdfhdt.hdt.rdf.parsers.RDFParserHDT;
-import org.rdfhdt.hdt.iterator.utils.PipedIterator;
 import org.rdfhdt.hdt.rdf.parsers.RDFParserList;
 import org.rdfhdt.hdt.rdf.parsers.RDFParserRAR;
 import org.rdfhdt.hdt.rdf.parsers.RDFParserRIOT;
@@ -93,6 +93,24 @@ public class RDFParserFactory {
 	 * @return iterator
 	 */
 	public static Iterator<TripleString> readAsIterator(RDFParserCallback parser, InputStream stream, String baseUri, boolean keepBNode, RDFNotation notation) {
-		return PipedIterator.createOfCallback(pipe -> parser.doParse(stream, baseUri, notation, keepBNode, (triple, pos) -> pipe.addElement(triple)));
+		return PipedCopyIterator.createOfCallback(TripleStringParser.INSTANCE, pipe -> parser.doParse(stream, baseUri, notation, keepBNode, (triple, pos) -> pipe.addElement(triple)));
+	}
+
+	private static class TripleStringParser implements PipedCopyIterator.Parser<TripleString> {
+		private static final TripleStringParser INSTANCE = new TripleStringParser();
+		@Override
+		public void write(TripleString tripleString, OutputStream stream) throws IOException {
+			PipedCopyIterator.Parser.writeString(tripleString.getSubject(), stream);
+			PipedCopyIterator.Parser.writeString(tripleString.getPredicate(), stream);
+			PipedCopyIterator.Parser.writeString(tripleString.getObject(), stream);
+		}
+
+		@Override
+		public TripleString read(InputStream stream) throws IOException {
+			String s = PipedCopyIterator.Parser.readString(stream);
+			String p = PipedCopyIterator.Parser.readString(stream);
+			String o = PipedCopyIterator.Parser.readString(stream);
+			return new TripleString(s, p, o);
+		}
 	}
 }

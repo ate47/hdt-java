@@ -2,27 +2,34 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
+import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressNodeMergeIterator;
 import org.rdfhdt.hdt.util.io.compress.CompressNodeReader;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Implementation of {@link org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult} for partial file reading
+ *
+ * @author Antoine Willerval
+ */
 public class CompressionResultPartial implements CompressionResult {
 	private final List<CompressNodeReaderTriple> files;
-	private final File triples;
+	private final CloseSuppressPath triples;
 	private final long triplesCount;
 	private final ExceptionIterator<IndexedNode, IOException> subject;
 	private final ExceptionIterator<IndexedNode, IOException> predicate;
 	private final ExceptionIterator<IndexedNode, IOException> object;
 
-	public CompressionResultPartial(List<SectionCompressor.TripleFile> files, File triples, long triplesCount) throws IOException {
+	public CompressionResultPartial(List<SectionCompressor.TripleFile> files, CloseSuppressPath triples, long triplesCount) throws IOException {
 		this.files = new ArrayList<>(files.size());
-		for (SectionCompressor.TripleFile file: files) {
+		for (SectionCompressor.TripleFile file : files) {
 			this.files.add(new CompressNodeReaderTriple(file));
 		}
 		this.triples = triples;
@@ -49,7 +56,7 @@ public class CompressionResultPartial implements CompressionResult {
 	}
 
 	@Override
-	public File getTriples() {
+	public CloseSuppressPath getTriples() {
 		return triples;
 	}
 
@@ -74,30 +81,13 @@ public class CompressionResultPartial implements CompressionResult {
 	}
 
 	@Override
-	public void delete() {
-		files.forEach(triple -> triple.file.delete());
+	public void delete() throws IOException {
+		IOUtil.closeAll(files);
 	}
 
 	@Override
 	public void close() throws IOException {
-		// close the files
-		IOException e = null;
-		RuntimeException re = null;
-		for (CompressNodeReaderTriple triple : files) {
-			try {
-				triple.close();
-			} catch (IOException ee) {
-				e = ee;
-			} catch (RuntimeException t) {
-				re = t;
-			}
-		}
-		if (e != null) {
-			throw e;
-		}
-		if (re != null) {
-			throw re;
-		}
+		IOUtil.closeAll(files);
 	}
 
 	/*
@@ -136,15 +126,7 @@ public class CompressionResultPartial implements CompressionResult {
 
 		@Override
 		public void close() throws IOException {
-			try {
-				s.close();
-			} finally {
-				try {
-					p.close();
-				} finally {
-					o.close();
-				}
-			}
+			IOUtil.closeAll(s, p, o);
 		}
 
 		public CompressNodeReader getS() {

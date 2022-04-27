@@ -2,20 +2,25 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
+import org.rdfhdt.hdt.util.io.CloseSuppressPath;
+import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressNodeReader;
 
-import java.io.File;
 import java.io.IOException;
 
+/**
+ * Implementation of {@link org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult} for full file reading
+ * @author Antoine Willerval
+ */
 public class CompressionResultFile implements CompressionResult {
-	private final File triples;
+	private final CloseSuppressPath triples;
 	private final long tripleCount;
 	private final CompressNodeReader subjects;
 	private final CompressNodeReader predicates;
 	private final CompressNodeReader objects;
 	private final SectionCompressor.TripleFile sections;
 
-	public CompressionResultFile(File triples, long tripleCount, SectionCompressor.TripleFile sections) throws IOException {
+	public CompressionResultFile(CloseSuppressPath triples, long tripleCount, SectionCompressor.TripleFile sections) throws IOException {
 		this.triples = triples;
 		this.tripleCount = tripleCount;
 		this.subjects = new CompressNodeReader(sections.openRSubject());
@@ -25,7 +30,7 @@ public class CompressionResultFile implements CompressionResult {
 	}
 
 	@Override
-	public File getTriples() {
+	public CloseSuppressPath getTriples() {
 		return triples;
 	}
 
@@ -50,8 +55,8 @@ public class CompressionResultFile implements CompressionResult {
 	}
 
 	@Override
-	public void delete() {
-		sections.delete();
+	public void delete() throws IOException {
+		sections.close();
 	}
 
 	@Override
@@ -76,14 +81,10 @@ public class CompressionResultFile implements CompressionResult {
 
 	@Override
 	public void close() throws IOException {
-		try {
-			try {
-				this.objects.close();
-			} finally {
-				this.predicates.close();
-			}
-		} finally {
-			this.subjects.close();
-		}
+		IOUtil.closeAll(
+				objects,
+				predicates,
+				subjects
+		);
 	}
 }

@@ -12,6 +12,6 @@ public class FileTripleIDIterator extends FileChunkIterator<TripleID> {
 	 * @param maxSize            the maximum size of each file, this size is estimated, so files can be bigger.
 	 */
 	public FileTripleIDIterator(Iterator<TripleID> it, long maxSize) {
-		super(it, maxSize, tripleID -> 3L * Long.BYTES);
+		super(it, maxSize, tripleID -> 4L * Long.BYTES);
 	}
 }
