@@ -6,11 +6,19 @@ import static org.junit.Assert.fail;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class IOUtilTest {
+
+	@Rule
+	public TemporaryFolder tempDir = new TemporaryFolder();
 
 	@Before
 	public void setUp() throws Exception {
@@ -138,5 +146,30 @@ public class IOUtilTest {
 					throw new IOException();
 				}
 		);
+	}
+
+	@Test
+	public void closeablePathTest() throws IOException {
+		Path p = tempDir.newFolder().toPath();
+
+		Path p1 = p.resolve("test1");
+		try (CloseSuppressPath csp = CloseSuppressPath.of(p1)) {
+			Files.writeString(csp.getJavaPath(), "test");
+			Assert.assertTrue(Files.exists(p1));
+		}
+		Assert.assertFalse(Files.exists(p1));
+
+
+		Path p2 = p.resolve("test2");
+		try (CloseSuppressPath csp = CloseSuppressPath.of(p2)) {
+			csp.closeWithDeleteRecurse();
+			Path p3 = csp.getJavaPath().resolve("test3/test4/test5");
+			Path f4 = p3.resolve("child.txt");
+			Files.createDirectories(p3);
+			Files.writeString(f4, "hello world");
+			Assert.assertTrue(Files.exists(f4));
+		}
+		Assert.assertFalse(Files.exists(p2));
+
 	}
 }

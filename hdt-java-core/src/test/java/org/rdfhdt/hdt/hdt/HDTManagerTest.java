@@ -12,6 +12,7 @@ import org.rdfhdt.hdt.enums.RDFNotation;
 import org.rdfhdt.hdt.exceptions.NotFoundException;
 import org.rdfhdt.hdt.exceptions.ParserException;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult;
+import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.options.HDTOptionsKeys;
 import org.rdfhdt.hdt.options.HDTSpecification;
 import org.rdfhdt.hdt.triples.IteratorTripleString;
@@ -24,6 +25,7 @@ import org.rdfhdt.hdt.util.io.compress.CompressTest;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Iterator;
 
 public class HDTManagerTest {
@@ -194,31 +196,22 @@ public class HDTManagerTest {
 
 	@Test
 	@Ignore("big")
-	public void customLoadTest() throws IOException, ParserException, NotFoundException {
-		spec.set("loader.disk.compressMode", CompressionResult.COMPRESSION_MODE_COMPLETE);
-		File mapHDT = tempDir.newFile("mapHDTTest.hdt");
-		spec.set(HDTOptionsKeys.LOADER_DISK_FUTURE_HDT_LOCATION_KEY, mapHDT.getAbsolutePath());
+	public void bigTest() throws ParserException, IOException {
+		LargeFakeDataSetStreamSupplier supplier = LargeFakeDataSetStreamSupplier
+				.createSupplierWithMaxSize(10_000_000_000L, 94);
 
+		Path output = Path.of("/Users/ate/workspace/qacompany/big.hdt");
+
+		HDTOptions spec = new HDTSpecification();
+		spec.set(HDTOptionsKeys.LOADER_DISK_FUTURE_HDT_LOCATION_KEY, output.toAbsolutePath().toString());
+		spec.set(HDTOptionsKeys.LOADER_DISK_LOCATION_KEY, output.resolveSibling("big_work").toAbsolutePath().toString());
 		StopWatch watch = new StopWatch();
-		HDT actual = HDTManager.generateHDTDisk(
-				// create a big nt file and put it here:
-				"/Users/ate/workspace/qacompany/dbpedia/dataset.nt.gz",
-				HDTTestUtils.BASE_URI,
-				spec,
+		watch.reset();
+		HDT hdt = HDTManager.generateHDTDisk(supplier.createTripleStringStream(), "http://ex.ogr/#", spec,
 				(level, message) -> System.out.println("[" + level + "] " + message)
 		);
 		System.out.println(watch.stopAndShow());
-		watch.reset();
-		HDT expected = HDTManager.generateHDT(
-				"/Users/ate/workspace/qacompany/dbpedia/dataset.nt.gz",
-				HDTTestUtils.BASE_URI,
-				RDFNotation.NTRIPLES,
-				spec,
-				(level, message) -> {
-				}
-		);
-		System.out.println(watch.stopAndShow());
-
-		assertEquals(expected, actual);
+		System.out.println(hdt.getTriples().getNumberOfElements());
+		hdt.close();
 	}
 }

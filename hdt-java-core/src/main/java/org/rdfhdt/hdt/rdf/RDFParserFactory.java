@@ -40,7 +40,9 @@ import org.rdfhdt.hdt.rdf.parsers.RDFParserTar;
 import org.rdfhdt.hdt.rdf.parsers.RDFParserZip;
 import org.rdfhdt.hdt.triples.TripleString;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Iterator;
 
 /**

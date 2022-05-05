@@ -27,6 +27,7 @@
 package org.rdfhdt.hdt.tools;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 import org.rdfhdt.hdt.enums.CompressionType;
@@ -36,6 +37,7 @@ import org.rdfhdt.hdt.hdt.HDT;
 import org.rdfhdt.hdt.hdt.HDTManager;
 import org.rdfhdt.hdt.hdt.HDTVersion;
 import org.rdfhdt.hdt.listener.ProgressListener;
+import org.rdfhdt.hdt.options.HDTOptionsKeys;
 import org.rdfhdt.hdt.options.HDTSpecification;
 import org.rdfhdt.hdt.util.StopWatch;
 
@@ -79,37 +81,41 @@ public class RDF2HDT implements ProgressListener {
 	@Parameter(names = "-disk", description = "Generate the HDT on disk to reduce memory usage")
 	public boolean disk;
 
+	@Parameter(names = "-disklocation", description = "Location to run the generate disk, by default in a temporary directory, will be deleted after")
+	public String diskLocation;
+
+
 	@Parameter(names = "-canonicalntfile", description = "Only for NTriples input. Use a Fast NT file parser the input should be in a canonical form. See https://www.w3.org/TR/n-triples/#h2_canonical-ntriples")
 	public boolean ntSimpleLoading;
 
 	public void execute() throws ParserException, IOException {
 		HDTSpecification spec;
-		if(configFile!=null) {
+		if (configFile != null) {
 			spec = new HDTSpecification(configFile);
 		} else {
 			spec = new HDTSpecification();
 		}
-		if(options!=null) {
+		if (options != null) {
 			spec.setOptions(options);
 		}
-		if(baseURI==null) {
-			baseURI = "file://"+rdfInput;
+		if (baseURI == null) {
+			baseURI = "file://" + rdfInput;
 		}
 
-		RDFNotation notation=null;
-		if(rdfType!=null) {
+		RDFNotation notation = null;
+		if (rdfType != null) {
 			try {
 				notation = RDFNotation.parse(rdfType);
 			} catch (IllegalArgumentException e) {
-				System.out.println("Notation "+rdfType+" not recognised.");
+				System.out.println("Notation " + rdfType + " not recognised.");
 			}
 		}
-		
-		if(notation==null) {
+
+		if (notation == null) {
 			try {
-				notation =  RDFNotation.guess(rdfInput);
+				notation = RDFNotation.guess(rdfInput);
 			} catch (IllegalArgumentException e) {
-				System.out.println("Could not guess notation for "+rdfInput+" Trying NTriples");
+				System.out.println("Could not guess notation for " + rdfInput + " Trying NTriples");
 				notation = RDFNotation.NTRIPLES;
 			}
 		}
@@ -122,6 +128,16 @@ public class RDF2HDT implements ProgressListener {
 		HDT hdt;
 
 		if (disk) {
+			if (!quiet) {
+				System.out.println("Generating using generateHDTDisk");
+			}
+			spec.set(HDTOptionsKeys.LOADER_DISK_FUTURE_HDT_LOCATION_KEY, hdtOutput);
+			if (diskLocation != null) {
+				spec.set(HDTOptionsKeys.LOADER_DISK_LOCATION_KEY, diskLocation);
+				if (!quiet) {
+					System.out.println("Using temp directory " + diskLocation);
+				}
+			}
 			hdt = HDTManager.generateHDTDisk(rdfInput, baseURI, notation, CompressionType.guess(rdfInput), spec, this);
 		} else {
 			hdt = HDTManager.generateHDT(rdfInput, baseURI, notation, spec, this);
@@ -139,9 +155,11 @@ public class RDF2HDT implements ProgressListener {
 			}
 
 			// Dump to HDT file
-			sw = new StopWatch();
-			hdt.saveToHDT(hdtOutput, this);
-			System.out.println("HDT saved to file in: "+sw.stopAndShow());
+			if (!disk) {
+				sw = new StopWatch();
+				hdt.saveToHDT(hdtOutput, this);
+				System.out.println("HDT saved to file in: "+sw.stopAndShow());
+			}
 
 			// Generate index and dump it to .hdt.index file
 			sw.reset();
