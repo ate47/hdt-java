@@ -23,6 +23,7 @@ import org.rdfhdt.hdt.header.HeaderPrivate;
 import org.rdfhdt.hdt.header.HeaderUtil;
 import org.rdfhdt.hdt.iterator.utils.FileTripleIDIterator;
 import org.rdfhdt.hdt.iterator.utils.FileTripleIterator;
+import org.rdfhdt.hdt.listener.MultiThreadListener;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.options.HDTOptionsKeys;
@@ -34,7 +35,6 @@ import org.rdfhdt.hdt.triples.TempTriples;
 import org.rdfhdt.hdt.triples.TripleString;
 import org.rdfhdt.hdt.triples.TriplesPrivate;
 import org.rdfhdt.hdt.util.StopWatch;
-import org.rdfhdt.hdt.util.concurrent.SyncListener;
 import org.rdfhdt.hdt.util.concurrent.TreeWorker;
 import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.IOUtil;
@@ -138,6 +138,7 @@ public class HDTManagerImpl extends HDTManager {
 			long originalSize = HeaderUtil.getPropertyLong(modHdt.getHeader(), "_:statistics", HDTVocabulary.ORIGINAL_SIZE);
 			hdt.getHeader().insert("_:statistics", HDTVocabulary.ORIGINAL_SIZE, originalSize);
 		} catch (NotFoundException e) {
+			// ignored
 		}
 
 		modHdt.close();
@@ -175,6 +176,7 @@ public class HDTManagerImpl extends HDTManager {
 			long originalSize = HeaderUtil.getPropertyLong(modHdt.getHeader(), "_:statistics", HDTVocabulary.ORIGINAL_SIZE);
 			hdt.getHeader().insert("_:statistics", HDTVocabulary.ORIGINAL_SIZE, originalSize);
 		} catch (NotFoundException e) {
+			// ignored
 		}
 
 		modHdt.close();
@@ -212,8 +214,8 @@ public class HDTManagerImpl extends HDTManager {
 	}
 
 	@Override
-	public HDT doGenerateHDTDisk(Iterator<TripleString> iterator, String baseURI, HDTOptions hdtFormat, ProgressListener listener) throws IOException, ParserException {
-		listener = SyncListener.of(listener);
+	public HDT doGenerateHDTDisk(Iterator<TripleString> iterator, String baseURI, HDTOptions hdtFormat, ProgressListener progressListener) throws IOException, ParserException {
+		MultiThreadListener listener = ListenerUtil.multiThreadListener(progressListener);
 		// load config
 		// compression mode
 		String compressMode = hdtFormat.get(HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_KEY); // see CompressionResult
@@ -250,7 +252,7 @@ public class HDTManagerImpl extends HDTManager {
 		basePath.mkdirs();
 		try {
 			// compress the triples into sections and compressed triples
-			ListenerUtil.notify(listener, "Sorting sections", 0, 100);
+			listener.notifyProgress(0, "Sorting sections");
 
 			FileTripleIterator triplesFile = new FileTripleIterator(iterator, chunkSize);
 
@@ -270,7 +272,9 @@ public class HDTManagerImpl extends HDTManager {
 			}
 			hdt.setBaseUri(baseURI);
 
-			ListenerUtil.notify(listener, "Create sections and triple mapping", 20, 100);
+			listener.unregisterAllThreads();
+			listener.notifyProgress(20, "Create sections and triple mapping");
+
 			// create sections and triple mapping
 			DictionaryPrivate dictionary = hdt.getDictionary();
 			CompressTripleMapper mapper = new CompressTripleMapper(basePath, compressionResult.getTripleCount());
@@ -285,7 +289,7 @@ public class HDTManagerImpl extends HDTManager {
 			compressionResult.delete();
 			mapper.setShared(dictionary.getNshared());
 
-			ListenerUtil.notify(listener, "Create mapped and sort triple file", 40, 100);
+			listener.notifyProgress(40, "Create mapped and sort triple file");
 			// create mapped triples file
 			TripleCompressionResult tripleCompressionResult;
 			TriplesPrivate triples = hdt.getTriples();
@@ -296,9 +300,10 @@ public class HDTManagerImpl extends HDTManager {
 			} catch (TreeWorker.TreeWorkerException | InterruptedException e) {
 				throw new ParserException(e);
 			}
+			listener.unregisterAllThreads();
 
 			try {
-				ListenerUtil.notify(listener, "Create bit triples", 80, 100);
+				listener.notifyProgress(80, "Create bit triples");
 				// create bit triples and load the triples
 				TempTriples tempTriples = tripleCompressionResult.getTriples();
 				triples.load(tempTriples, listener);
@@ -310,7 +315,7 @@ public class HDTManagerImpl extends HDTManager {
 				tripleCompressionResult.close();
 			}
 
-			ListenerUtil.notify(listener, "Create HDT header", 90, 100);
+			listener.notifyProgress(90, "Create HDT header");
 			// header
 			hdt.populateHeaderStructure(hdt.getBaseURI());
 			hdt.getHeader().insert("_:statistics", HDTVocabulary.ORIGINAL_SIZE, triplesFile.getTotalSize());
@@ -323,14 +328,14 @@ public class HDTManagerImpl extends HDTManager {
 				} finally {
 					hdt.close();
 				}
-				ListenerUtil.notify(listener, "Map HDT", 100, 100);
+				listener.notifyProgress(100, "Map HDT");
 				return doMapHDT(futureHDTLocation, listener, hdtFormat);
 			} else {
-				ListenerUtil.notify(listener, "HDT completed", 100, 100);
+				listener.notifyProgress(100, "HDT completed");
 				return hdt;
 			}
 		} finally {
-			ListenerUtil.notify(listener, "Clearing disk", 100, 100);
+			listener.notifyProgress(100, "Clearing disk");
 			basePath.close();
 		}
 	}

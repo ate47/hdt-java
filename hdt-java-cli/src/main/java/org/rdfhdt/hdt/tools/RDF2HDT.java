@@ -44,6 +44,7 @@ import org.rdfhdt.hdt.util.StopWatch;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.internal.Lists;
+import org.rdfhdt.hdt.util.listener.MultiThreadListenerConsole;
 
 /**
  * @author mario.arias
@@ -138,7 +139,11 @@ public class RDF2HDT implements ProgressListener {
 					System.out.println("Using temp directory " + diskLocation);
 				}
 			}
-			hdt = HDTManager.generateHDTDisk(rdfInput, baseURI, notation, CompressionType.guess(rdfInput), spec, this);
+			MultiThreadListenerConsole listenerConsole = !quiet ? new MultiThreadListenerConsole() : null;
+			hdt = HDTManager.generateHDTDisk(rdfInput, baseURI, notation, CompressionType.guess(rdfInput), spec, listenerConsole);
+			if (listenerConsole != null) {
+				listenerConsole.notifyProgress(100, "done");
+			}
 		} else {
 			hdt = HDTManager.generateHDT(rdfInput, baseURI, notation, spec, this);
 		}

@@ -1,6 +1,8 @@
 package org.rdfhdt.hdt.util.concurrent;
 
 
+import org.rdfhdt.hdt.listener.MultiThreadListener;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +27,7 @@ public class TreeWorker<T> {
 	private boolean started = false;
 	private boolean done = false;
 	private TreeWorkerException throwable;
+	private MultiThreadListener listener;
 
 	/**
 	 * create a tree worker
@@ -77,6 +80,14 @@ public class TreeWorker<T> {
 		for (int i = 0; i < workers; i++) {
 			this.workers.add(new Worker());
 		}
+	}
+
+	/**
+	 * set a listener for each worker
+	 * @param listener the listener
+	 */
+	public void setListener(MultiThreadListener listener) {
+		this.listener = listener;
 	}
 
 	/**
@@ -332,6 +343,9 @@ public class TreeWorker<T> {
 		@Override
 		public void run() {
 			while (!isCompleted()) {
+				if (listener != null) {
+					listener.notifyProgress(0, "waiting job");
+				}
 				TreeWorkerJob job = null;
 				try {
 					synchronized (WAITING_SYNC) {
@@ -368,6 +382,10 @@ public class TreeWorker<T> {
 						WAITING_SYNC.notifyAll();
 					}
 				}
+			}
+			if (listener != null) {
+				listener.notifyProgress(100, "completed");
+				listener.unregisterThread(getName());
 			}
 		}
 

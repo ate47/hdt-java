@@ -5,6 +5,7 @@ import org.rdfhdt.hdt.dictionary.impl.section.WriteDictionarySection;
 import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.hdt.HDTVocabulary;
 import org.rdfhdt.hdt.header.Header;
+import org.rdfhdt.hdt.listener.MultiThreadListener;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.options.ControlInfo;
 import org.rdfhdt.hdt.options.HDTOptions;
@@ -12,6 +13,7 @@ import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 import org.rdfhdt.hdt.util.io.CountInputStream;
 import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.listener.IntermediateListener;
+import org.rdfhdt.hdt.util.listener.ListenerUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +37,8 @@ public class WriteFourSectionDictionary extends BaseDictionary {
 
 	@Override
 	public void loadAsync(TempDictionary other, ProgressListener listener) throws InterruptedException {
-		ProgressListener iListener = new IntermediateListener(null);
+		MultiThreadListener iListener = ListenerUtil.multiThreadListener(listener);
+		iListener.unregisterAllThreads();
 		ExceptionThread.async("FourSecSAsyncReader",
 						() -> predicates.load(other.getPredicates(), iListener),
 						() -> subjects.load(other.getSubjects(), iListener),
@@ -44,6 +47,7 @@ public class WriteFourSectionDictionary extends BaseDictionary {
 				)
 				.startAll()
 				.joinAndCrashIfRequired();
+		iListener.unregisterAllThreads();
 	}
 
 	@Override

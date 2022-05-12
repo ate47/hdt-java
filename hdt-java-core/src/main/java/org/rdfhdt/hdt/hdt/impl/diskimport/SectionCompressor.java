@@ -1,7 +1,7 @@
 package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.iterator.utils.FileTripleIterator;
-import org.rdfhdt.hdt.listener.ProgressListener;
+import org.rdfhdt.hdt.listener.MultiThreadListener;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.triples.IndexedTriple;
 import org.rdfhdt.hdt.triples.TripleString;
@@ -11,7 +11,6 @@ import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressTripleWriter;
 import org.rdfhdt.hdt.util.io.compress.CompressUtil;
-import org.rdfhdt.hdt.util.listener.ListenerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +35,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 	private final CompressTripleWriter writer;
 	private boolean done;
 	private final CloseSuppressPath triplesOutput;
-	private final ProgressListener listener;
+	private final MultiThreadListener listener;
 	private long triples = 0;
 	private final IdFetcher subjectIdFetcher = new IdFetcher();
 	private final IdFetcher predicateIdFetcher = new IdFetcher();
@@ -45,7 +44,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 	private final ParallelSortableArrayList<IndexedNode> predicates = new ParallelSortableArrayList<>(IndexedNode[].class);
 	private final ParallelSortableArrayList<IndexedNode> objects = new ParallelSortableArrayList<>(IndexedNode[].class);
 
-	public SectionCompressor(CloseSuppressPath baseFileName, FileTripleIterator source, ProgressListener listener) throws IOException {
+	public SectionCompressor(CloseSuppressPath baseFileName, FileTripleIterator source, MultiThreadListener listener) throws IOException {
 		this.source = source;
 		this.listener = listener;
 		this.baseFileName = baseFileName;
@@ -64,11 +63,14 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				return null;
 			}
 
+			listener.notifyProgress(0, "start reading triples");
+
 			subjects.clear();
 			predicates.clear();
 			objects.clear();
 			IndexedNode lastS = IndexedNode.UNKNOWN, lastP = IndexedNode.UNKNOWN, lastO = IndexedNode.UNKNOWN;
 			IndexedTriple triple = new IndexedTriple();
+			listener.notifyProgress(10, "reading triples " + triples);
 			while (source.hasNext()) {
 				// too much ram allowed?
 				if (subjects.size() == Integer.MAX_VALUE - 5) {
@@ -105,21 +107,25 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				triples++;
 				writer.appendTriple(triple);
 
-				ListenerUtil.notifyCond(listener, "Reading triples", triples, triples, 100);
+				if (triples % 100_000 == 0) {
+					listener.notifyProgress(10, "reading triples " + triples);
+				}
 			}
-			ListenerUtil.notify(listener, "Writing sections", triples, 100);
 
 			int fid = ID_INC.incrementAndGet();
 			TripleFile sections = new TripleFile(baseFileName.resolve("section" + fid + ".raw"));
 			try {
+				listener.notifyProgress(70, "sorting/writing subjects section " + triples + " " + sections.root.getFileName());
 				try (OutputStream stream = sections.openWSubject()) {
 					subjects.parallelSort(IndexedNode::compareTo);
 					CompressUtil.writeCompressedSection(subjects, stream);
 				}
+				listener.notifyProgress(80, "sorting/writing predicates section " + triples + " " + sections.root.getFileName());
 				try (OutputStream stream = sections.openWPredicate()) {
 					predicates.parallelSort(IndexedNode::compareTo);
 					CompressUtil.writeCompressedSection(predicates, stream);
 				}
+				listener.notifyProgress(90, "sorting/writing objects section " + triples + " " + sections.root.getFileName());
 				try (OutputStream stream = sections.openWObject()) {
 					objects.parallelSort(IndexedNode::compareTo);
 					CompressUtil.writeCompressedSection(objects, stream);
@@ -128,6 +134,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				subjects.clear();
 				predicates.clear();
 				objects.clear();
+				listener.notifyProgress(100, "section completed" + sections.root.getFileName().toString());
 			}
 			return sections;
 		} catch (IOException e) {
@@ -149,6 +156,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 		TripleFile sections;
 		try {
 			sections = new TripleFile(baseFileName.resolve("section" + fid + ".raw"));
+			listener.notifyProgress(0, "merging subjects section " + sections.root.getFileName());
 
 			// subjects
 			try (OutputStream output = sections.openWSubject();
@@ -157,6 +165,8 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				// merge the two nodes together
 				CompressUtil.mergeCompressedSection(input1, input2, output);
 			}
+
+			listener.notifyProgress(30, "merging predicates section " + sections.root.getFileName());
 			// predicates
 			try (OutputStream output = sections.openWPredicate();
 				 InputStream input1 = a.openRPredicate();
@@ -164,6 +174,8 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				// merge the two nodes together
 				CompressUtil.mergeCompressedSection(input1, input2, output);
 			}
+
+			listener.notifyProgress(60, "merging objects section " + sections.root.getFileName());
 			// objects
 			try (OutputStream output = sections.openWObject();
 				 InputStream input1 = a.openRObject();
@@ -171,6 +183,8 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 				// merge the two nodes together
 				CompressUtil.mergeCompressedSection(input1, input2, output);
 			}
+
+			listener.notifyProgress(100, "sections merged " + sections.root.getFileName());
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -243,6 +257,7 @@ public class SectionCompressor implements Closeable, TreeWorker.TreeWorkerObject
 	public CompressionResult compressToFile(int workers) throws IOException, InterruptedException, TreeWorker.TreeWorkerException {
 		// force to create the first file
 		TreeWorker<TripleFile> treeWorker = new TreeWorker<>(this, workers);
+		treeWorker.setListener(listener);
 		treeWorker.start();
 		// wait for the workers to merge the sections and create the triples
 		TripleFile sections = treeWorker.waitToComplete();

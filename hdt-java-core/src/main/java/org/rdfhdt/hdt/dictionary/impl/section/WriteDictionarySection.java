@@ -5,6 +5,7 @@ import org.rdfhdt.hdt.compact.sequence.SequenceLog64BigDisk;
 import org.rdfhdt.hdt.dictionary.DictionarySectionPrivate;
 import org.rdfhdt.hdt.dictionary.TempDictionarySection;
 import org.rdfhdt.hdt.exceptions.NotImplementedException;
+import org.rdfhdt.hdt.listener.MultiThreadListener;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.util.crc.CRC32;
@@ -13,6 +14,7 @@ import org.rdfhdt.hdt.util.crc.CRCOutputStream;
 import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.CountOutputStream;
 import org.rdfhdt.hdt.util.io.IOUtil;
+import org.rdfhdt.hdt.util.listener.ListenerUtil;
 import org.rdfhdt.hdt.util.string.ByteStringUtil;
 
 import java.io.IOException;
@@ -51,9 +53,12 @@ public class WriteDictionarySection implements DictionarySectionPrivate {
 	}
 
 	@Override
-	public void load(TempDictionarySection other, ProgressListener listener) {
-		blocks = new SequenceLog64BigDisk(blockTempFilename.toAbsolutePath().toString(), 64, other.getNumberOfElements() / blockSize);
+	public void load(TempDictionarySection other, ProgressListener plistener) {
+		MultiThreadListener listener = ListenerUtil.multiThreadListener(plistener);
+		long otherN = other.getNumberOfElements();
+		blocks = new SequenceLog64BigDisk(blockTempFilename.toAbsolutePath().toString(), 64, otherN / blockSize);
 
+		listener.notifyProgress(0, "Filling section");
 		try (CountOutputStream out = new CountOutputStream(tempFilename.openOutputStream(true))) {
 			CRCOutputStream crcout = new CRCOutputStream(out, new CRC32());
 			String previousStr = null;
@@ -76,6 +81,9 @@ public class WriteDictionarySection implements DictionarySectionPrivate {
 				out.write(0);
 				previousStr = str;
 				numberElements++;
+				if (numberElements % 100_000 == 0) {
+					listener.notifyProgress((float) (numberElements * 100 / otherN), "Filling section");
+				}
 			}
 
 			byteoutSize = out.getTotalBytes();
@@ -86,6 +94,9 @@ public class WriteDictionarySection implements DictionarySectionPrivate {
 		blocks.append(byteoutSize);
 		// Trim text/blocks
 		blocks.aggressiveTrimToSize();
+		if (numberElements % 100_000 == 0) {
+			listener.notifyProgress(100, "Completed section filling");
+		}
 	}
 
 	@Override

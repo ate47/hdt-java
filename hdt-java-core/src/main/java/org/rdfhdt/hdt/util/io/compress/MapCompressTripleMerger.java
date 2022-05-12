@@ -7,14 +7,13 @@ import org.rdfhdt.hdt.hdt.impl.diskimport.TripleCompressionResult;
 import org.rdfhdt.hdt.hdt.impl.diskimport.TripleCompressionResultFile;
 import org.rdfhdt.hdt.hdt.impl.diskimport.TripleCompressionResultPartial;
 import org.rdfhdt.hdt.iterator.utils.FileTripleIDIterator;
-import org.rdfhdt.hdt.listener.ProgressListener;
+import org.rdfhdt.hdt.listener.MultiThreadListener;
 import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.triples.TripleIDComparator;
 import org.rdfhdt.hdt.util.ParallelSortableArrayList;
 import org.rdfhdt.hdt.util.concurrent.TreeWorker;
 import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.IOUtil;
-import org.rdfhdt.hdt.util.listener.ListenerUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,13 +32,13 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 	private final CloseSuppressPath baseFileName;
 	private final FileTripleIDIterator source;
 	private final CompressTripleMapper mapper;
-	private final ProgressListener listener;
+	private final MultiThreadListener listener;
 	private final TripleComponentOrder order;
 	private boolean done;
 	private long triplesCount = 0;
 	private final ParallelSortableArrayList<TripleID> tripleIDS = new ParallelSortableArrayList<>(TripleID[].class);
 
-	public MapCompressTripleMerger(CloseSuppressPath baseFileName, FileTripleIDIterator it, CompressTripleMapper mapper, ProgressListener listener, TripleComponentOrder order) {
+	public MapCompressTripleMerger(CloseSuppressPath baseFileName, FileTripleIDIterator it, CompressTripleMapper mapper, MultiThreadListener listener, TripleComponentOrder order) {
 		this.baseFileName = baseFileName;
 		this.source = it;
 		this.mapper = mapper;
@@ -52,6 +51,7 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 		try {
 			int fid = FID.incrementAndGet();
 			CloseSuppressPath triplesFiles = baseFileName.resolve( "triples" + fid + ".raw");
+			listener.notifyProgress(0, "merging triples " + triplesFiles.getFileName());
 			try (
 					CompressTripleWriter w = new CompressTripleWriter(triplesFiles.openOutputStream(true));
 					CompressTripleReader r1 = new CompressTripleReader(a.openInputStream(true));
@@ -59,6 +59,7 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 				CompressTripleMergeIterator mergeIterator = new CompressTripleMergeIterator(r1, r2, order);
 				mergeIterator.forEachRemaining(w::appendTriple);
 			}
+			listener.notifyProgress(100, "triples merged " + triplesFiles.getFileName());
 			return triplesFiles;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -82,6 +83,7 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 				return null;
 			}
 			tripleIDS.clear();
+			listener.notifyProgress(10, "reading triples part2  " + triplesCount);
 			while (source.hasNext()) {
 				if (tripleIDS.size() == Integer.MAX_VALUE - 5) {
 					source.forceNewFile();
@@ -94,13 +96,16 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 						mapper.extractObjects(next.getObject())
 				));
 				triplesCount++;
-				ListenerUtil.notifyCond(listener, "Merging triples", triplesCount, triplesCount, 100);
+				if (triplesCount % 100_000 == 0) {
+					listener.notifyProgress(10, "reading triples part2 " + triplesCount);
+				}
 			}
 
 			tripleIDS.parallelSort(TripleIDComparator.getComparator(order));
 			int fid = FID.incrementAndGet();
 			CloseSuppressPath triplesFiles = baseFileName.resolve("triples" + fid + ".raw");
 			try (CompressTripleWriter w = new CompressTripleWriter(triplesFiles.openOutputStream(true))) {
+				listener.notifyProgress(70, "sorting/writing triples " + triplesCount + " " + triplesFiles.getFileName());
 				TripleID prev = new TripleID(-1,-1,-1);
 				for (TripleID triple : tripleIDS) {
 					if (prev.match(triple)) {
@@ -109,6 +114,7 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 					prev.setAll(triple.getSubject(), triple.getPredicate(), triple.getObject());
 					w.appendTriple(triple);
 				}
+				listener.notifyProgress(100, "writing completed " + triplesCount + " " + triplesFiles.getFileName());
 			} finally {
 				tripleIDS.clear();
 			}
@@ -129,6 +135,7 @@ public class MapCompressTripleMerger implements TreeWorker.TreeWorkerObject<Clos
 	public TripleCompressionResult mergeToFile(int workers) throws TreeWorker.TreeWorkerException, InterruptedException, IOException {
 		// force to create the first file
 		TreeWorker<CloseSuppressPath> treeWorker = new TreeWorker<>(this, workers);
+		treeWorker.setListener(listener);
 		treeWorker.start();
 		// wait for the workers to merge the sections and create the triples
 		CloseSuppressPath triples = treeWorker.waitToComplete();
