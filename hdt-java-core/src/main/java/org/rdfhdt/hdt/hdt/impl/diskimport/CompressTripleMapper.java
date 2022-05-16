@@ -1,6 +1,9 @@
 package org.rdfhdt.hdt.hdt.impl.diskimport;
 
+import org.rdfhdt.hdt.compact.sequence.Sequence;
+import org.rdfhdt.hdt.compact.sequence.SequenceLog64BigDisk;
 import org.rdfhdt.hdt.dictionary.impl.CompressFourSectionDictionary;
+import org.rdfhdt.hdt.util.BitUtil;
 import org.rdfhdt.hdt.util.disk.LongArrayDisk;
 import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.IOUtil;
@@ -12,13 +15,14 @@ import java.io.IOException;
 
 /**
  * Map a compress triple file to long array map files
+ *
  * @author Antoine Willerval
  */
 public class CompressTripleMapper implements CompressFourSectionDictionary.NodeConsumer {
 	private static final Logger log = LoggerFactory.getLogger(CompressTripleMapper.class);
-	private final LongArrayDisk subjects;
-	private final LongArrayDisk predicates;
-	private final LongArrayDisk objects;
+	private final SequenceLog64BigDisk subjects;
+	private final SequenceLog64BigDisk predicates;
+	private final SequenceLog64BigDisk objects;
 	private final CloseSuppressPath locationSubjects;
 	private final CloseSuppressPath locationPredicates;
 	private final CloseSuppressPath locationObjects;
@@ -28,9 +32,10 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 		locationSubjects = location.resolve("map_subjects");
 		locationPredicates = location.resolve("map_predicates");
 		locationObjects = location.resolve("map_objects");
-		subjects = new LongArrayDisk(locationSubjects.toAbsolutePath().toString(), tripleCount + 2);
-		predicates = new LongArrayDisk(locationPredicates.toAbsolutePath().toString(), tripleCount + 2);
-		objects = new LongArrayDisk(locationObjects.toAbsolutePath().toString(), tripleCount + 2);
+		int numbits = BitUtil.log2(tripleCount + 2) + CompressUtil.INDEX_SHIFT;
+		subjects = new SequenceLog64BigDisk(locationSubjects.toAbsolutePath().toString(), numbits, tripleCount + 2);
+		predicates = new SequenceLog64BigDisk(locationPredicates.toAbsolutePath().toString(), numbits, tripleCount + 2);
+		objects = new SequenceLog64BigDisk(locationObjects.toAbsolutePath().toString(), numbits, tripleCount + 2);
 	}
 
 	/**
@@ -64,15 +69,15 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 		objects.set(preMapId, newMapId);
 	}
 
-	public LongArrayDisk getSubjects() {
+	public Sequence getSubjects() {
 		return subjects;
 	}
 
-	public LongArrayDisk getPredicates() {
+	public Sequence getPredicates() {
 		return predicates;
 	}
 
-	public LongArrayDisk getObjects() {
+	public Sequence getObjects() {
 		return objects;
 	}
 
@@ -88,6 +93,7 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 
 	/**
 	 * extract the map id of a subject
+	 *
 	 * @param id id
 	 * @return new id
 	 */
@@ -97,6 +103,7 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 
 	/**
 	 * extract the map id of a predicate
+	 *
 	 * @param id id
 	 * @return new id
 	 */
@@ -106,6 +113,7 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 
 	/**
 	 * extract the map id of a object
+	 *
 	 * @param id id
 	 * @return new id
 	 */
@@ -113,12 +121,12 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 		return extract(objects, id);
 	}
 
-	private long extract(LongArrayDisk array, long id) {
+	private long extract(Sequence array, long id) {
 		checkShared();
 		long data = array.get(id);
 		// loop over the duplicates
 		while (CompressUtil.isDuplicated(data)) {
-			long remap = array.get(CompressUtil.getDuplicatedIndex(data));
+			long remap = array.get(CompressUtil.getId(data));
 			assert remap != data : "remap and data are the same!";
 			data = remap;
 		}

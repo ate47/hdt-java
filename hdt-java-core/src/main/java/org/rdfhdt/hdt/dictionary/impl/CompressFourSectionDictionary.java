@@ -111,16 +111,16 @@ public class CompressFourSectionDictionary implements TempDictionary {
 
 		// send to the consumer the element while parsing them
 		this.subject = new OneReadDictionarySection(subject.mapWithId((node, index) -> {
-			nodeConsumer.onSubject(node.getIndex(), index + 1);
+			nodeConsumer.onSubject(node.getIndex(), CompressUtil.getHeaderId(index + 1));
 			return node.getNode();
 		}), subjects);
 		this.predicate = new OneReadDictionarySection(new MapIterator<>(sortedPredicate, (node, index) -> {
-			nodeConsumer.onPredicate(node.getIndex(), index + 1);
+			nodeConsumer.onPredicate(node.getIndex(), CompressUtil.getHeaderId(index + 1));
 			// force duplication because it's not made in a pipe like with the others
 			return node.getNode().toString();
 		}), predicates);
 		this.object = new OneReadDictionarySection(object.mapWithId((node, index) -> {
-			nodeConsumer.onObject(node.getIndex(), index + 1);
+			nodeConsumer.onObject(node.getIndex(), CompressUtil.getHeaderId(index + 1));
 			return node.getNode();
 		}), objects);
 		this.shared = new OneReadDictionarySection(shared.mapWithId((node, index) -> {

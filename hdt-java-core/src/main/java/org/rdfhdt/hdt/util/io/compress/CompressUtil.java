@@ -21,11 +21,15 @@ public class CompressUtil {
 	/**
 	 * the mask for shared computed compressed node
 	 */
-	public static final long SHARED_MASK = 1L << 62;
+	public static final long SHARED_MASK = 1L;
 	/**
 	 * mask for duplicated node
 	 */
-	public static final long DUPLICATE_MASK = 1L << 61;
+	public static final long DUPLICATE_MASK = 1L << 1;
+	/**
+	 * shift after the SHARED/DUPLICATES
+	 */
+	public static final int INDEX_SHIFT = 2;
 
 	/**
 	 * write a sorted list of indexed node
@@ -84,10 +88,10 @@ public class CompressUtil {
 	public static long computeSharedNode(long id, long sharedCount) {
 		if ((id & SHARED_MASK) != 0) {
 			// shared element
-			return id & ~SHARED_MASK;
+			return CompressUtil.getId(id);
 		}
 		// not shared
-		return id + sharedCount;
+		return CompressUtil.getId(id) + sharedCount;
 	}
 
 	/**
@@ -97,7 +101,7 @@ public class CompressUtil {
 	 * @return shared-computable element
 	 */
 	public static long asShared(long id) {
-		return id | SHARED_MASK;
+		return getHeaderId(id) | SHARED_MASK;
 	}
 
 	/**
@@ -107,7 +111,7 @@ public class CompressUtil {
 	 * @return duplicated computable element
 	 */
 	public static long asDuplicated(long id) {
-		return id | DUPLICATE_MASK;
+		return getHeaderId(id) | DUPLICATE_MASK;
 	}
 
 	/**
@@ -121,13 +125,21 @@ public class CompressUtil {
 	}
 
 	/**
-	 * get the value of this duplicated id
-	 *
-	 * @param id duplicated id
-	 * @return next mapping
+	 * get the id from a header id
+	 * @param headerId the header id
+	 * @return the id
 	 */
-	public static long getDuplicatedIndex(long id) {
-		return id & ~DUPLICATE_MASK;
+	public static long getId(long headerId) {
+		return headerId >>> INDEX_SHIFT;
+	}
+
+	/**
+	 * get a header id from an id
+	 * @param id the id
+	 * @return the header id
+	 */
+	public static long getHeaderId(long id) {
+		return id << INDEX_SHIFT;
 	}
 
 	/**

@@ -70,7 +70,7 @@ public class CompressTest {
 		long sharedIndex1 = CompressUtil.asShared(index1);
 
 		Assert.assertEquals(index1, CompressUtil.computeSharedNode(sharedIndex1, sharedCount));
-		Assert.assertEquals(sharedCount + index1, CompressUtil.computeSharedNode(index1, sharedCount));
+		Assert.assertEquals(sharedCount + index1, CompressUtil.computeSharedNode(CompressUtil.getHeaderId(index1), sharedCount));
 
 		long dupeIndex1 = CompressUtil.asDuplicated(index1);
 		long dupeSharedIndex1 = CompressUtil.asDuplicated(sharedIndex1);
@@ -78,7 +78,7 @@ public class CompressTest {
 		Assert.assertTrue(CompressUtil.isDuplicated(dupeIndex1));
 		Assert.assertTrue(CompressUtil.isDuplicated(dupeSharedIndex1));
 
-		Assert.assertEquals(index1, CompressUtil.getDuplicatedIndex(dupeIndex1));
-		Assert.assertEquals(sharedIndex1, CompressUtil.getDuplicatedIndex(dupeSharedIndex1));
+		Assert.assertEquals(index1, CompressUtil.getId(dupeIndex1));
+		Assert.assertEquals(sharedIndex1, CompressUtil.getId(dupeSharedIndex1));
 	}
 }
