@@ -309,7 +309,7 @@ public class IOUtil {
 		}
 
 		if (pos != length) {
-			throw new IOException("EOF while reading array from InputStream");
+			throw new EOFException("EOF while reading array from InputStream");
 		}
 
 		return data;

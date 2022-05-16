@@ -1,6 +1,5 @@
 package org.rdfhdt.hdt.hdt.impl;
 
-import org.rdfhdt.hdt.dictionary.DictionaryPrivate;
 import org.rdfhdt.hdt.dictionary.impl.WriteFourSectionDictionary;
 import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.header.HeaderFactory;
@@ -8,8 +7,7 @@ import org.rdfhdt.hdt.header.HeaderPrivate;
 import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.options.HDTOptions;
 import org.rdfhdt.hdt.triples.IteratorTripleString;
-import org.rdfhdt.hdt.triples.TriplesFactory;
-import org.rdfhdt.hdt.triples.TriplesPrivate;
+import org.rdfhdt.hdt.triples.impl.WriteBitmapTriples;
 import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.IOUtil;
 
@@ -26,7 +24,7 @@ import java.nio.file.Path;
  *
  * @author Antoine Willerval
  */
-public class WriteHDTImpl extends HDTBase<HeaderPrivate, DictionaryPrivate, TriplesPrivate> {
+public class WriteHDTImpl extends HDTBase<HeaderPrivate, WriteFourSectionDictionary, WriteBitmapTriples> {
 	private String baseURI;
 	private final CloseSuppressPath workingLocation;
 	private boolean isClosed;
@@ -38,7 +36,7 @@ public class WriteHDTImpl extends HDTBase<HeaderPrivate, DictionaryPrivate, Trip
 
 		dictionary = new WriteFourSectionDictionary(this.spec, workingLocation.resolve("section"));
 		// we need to have the bitmaps in memory, so we can't bypass the implementation
-		triples = TriplesFactory.createTriples(this.spec);
+		triples = new WriteBitmapTriples(this.spec, workingLocation.resolve("tripleBitmap"));
 		// small, can use default implementation
 		header = HeaderFactory.createHeader(this.spec);
 	}

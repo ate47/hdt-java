@@ -209,7 +209,7 @@ public class HDTManagerImpl extends HDTManager {
 	 */
 	static long getMaxChunkSize(int processors) {
 		Runtime runtime = Runtime.getRuntime();
-		long presFreeMemory = (long) ((runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())) / 3.0 * 0.85);
+		long presFreeMemory = (long) ((runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())) * 0.85);
 		return presFreeMemory / processors;
 	}
 
@@ -254,7 +254,7 @@ public class HDTManagerImpl extends HDTManager {
 			// compress the triples into sections and compressed triples
 			listener.notifyProgress(0, "Sorting sections");
 
-			FileTripleIterator triplesFile = new FileTripleIterator(iterator, chunkSize);
+			FileTripleIterator triplesFile = new FileTripleIterator(iterator, chunkSize / 3);
 
 			CompressionResult compressionResult;
 			try (SectionCompressor sectionCompressor = new SectionCompressor(basePath, triplesFile, listener)) {
