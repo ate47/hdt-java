@@ -51,7 +51,7 @@ public class HashDictionarySection implements TempDictionarySection {
 
 	private HashMap<CharSequence, Long> map;
 	private List<CharSequence> list;
-	private int size;
+	private long size;
 	public boolean sorted;
 	boolean isCustom;
 	private HashMap<String,Long> literalsCounts;

@@ -245,18 +245,15 @@ public class SequenceLog64Big implements DynamicSequence {
 	
 	@Override
     public void set(long position, long value) {
-		//if(value<0 || value>maxvalue) {
-			//throw new IllegalArgumentException("Value exceeds the maximum for this data structure");
-		//}
+		if (value < 0 || value > maxvalue) {
+			throw new IllegalArgumentException("Value exceeds the maximum for this data structure");
+		}
 		setField(data, numbits, position, value);
 	}
 	
 	@Override
     public void append(long value) {
-
-		//assert numentries<Integer.MAX_VALUE;
-		
-		if(value<0 || value>maxvalue) {
+		if(value < 0 || value > maxvalue) {
 			throw new IllegalArgumentException("Value exceeds the maximum for this data structure");
 		}
 		
