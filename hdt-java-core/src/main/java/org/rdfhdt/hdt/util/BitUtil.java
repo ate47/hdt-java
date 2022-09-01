@@ -40,6 +40,9 @@ public class BitUtil {
 	 * @param n
 	 */
 	public static int log2(long n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("Negative n value " + n);
+		}
 		return (n != 0) ? (64 - Long.numberOfLeadingZeros(n)) : 0;
 	}
 

@@ -75,8 +75,8 @@ public class PFCDictionarySectionBig implements DictionarySectionPrivate {
 	public static final int DEFAULT_BLOCK_SIZE = 16;
 	public static final int BLOCK_PER_BUFFER = 1000000;
 	
-	BigByteBuffer[] data;
-	long [] posFirst;
+	protected BigByteBuffer[] data;
+	protected long [] posFirst;
 	protected SequenceLog64Big blocks;
 	protected int blocksize;
 	protected long numstrings;
@@ -104,7 +104,7 @@ public class PFCDictionarySectionBig implements DictionarySectionPrivate {
 	
 	public void load(Iterator<? extends CharSequence> it, long numentries, ProgressListener listener)  {		
 		
-		this.blocks = new SequenceLog64Big(64, numentries/blocksize);
+		this.blocks = new SequenceLog64Big(63, numentries/blocksize);
 		this.numstrings = 0;
 		
 		filecounter++;

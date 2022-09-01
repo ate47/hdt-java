@@ -176,7 +176,7 @@ public class ByteStringUtil {
 			off1=0;
 			len1= ((ReplazableString) str).used;
 		} else {
-			throw new NotImplementedException();
+			throw new NotImplementedException(str.getClass().toString());
 		}
 
 		int n = (int) Math.min(len1-off1, len2-off2);
@@ -270,7 +270,7 @@ public class ByteStringUtil {
 			buf = ((ReplazableString) str).buffer;
 			len = ((ReplazableString) str).used;
 		} else {
-			throw new NotImplementedException();
+			throw new NotImplementedException(str.getClass().toString());
 		}
 
 		// Compare

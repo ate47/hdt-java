@@ -143,6 +143,9 @@ public class BigByteBuffer {
 	 * @param length   the length to read
 	 */
 	public void get(byte[] dst, long position, int offset, int length) {
+		if (length == 0) {
+			return; //ignore
+		}
 		int buffer1 = getBufferIndex(position);
 		int buffer2 = getBufferIndex(position + length - 1);
 

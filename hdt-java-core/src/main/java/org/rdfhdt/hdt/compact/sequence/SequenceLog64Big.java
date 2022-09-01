@@ -53,7 +53,7 @@ import pl.edu.icm.jlargearrays.LargeArrayUtils;
  *
  */
 public class SequenceLog64Big implements DynamicSequence { 
-	private static final byte W = 64;
+	private static final byte W = Long.SIZE;
 	private static final int INDEX = 1073741824;
 	
     LongLargeArray data;
@@ -62,7 +62,7 @@ public class SequenceLog64Big implements DynamicSequence {
 	private long maxvalue;
 	
 	public SequenceLog64Big() {
-		this(W);
+		this(W - 1);
 	}
 	
 	public SequenceLog64Big(int numbits) {
@@ -71,6 +71,9 @@ public class SequenceLog64Big implements DynamicSequence {
 	
 	public SequenceLog64Big(int numbits, long capacity) {
 		this.numentries = 0;
+		if (numbits < 0 || numbits >= Long.SIZE) {
+			throw new IllegalArgumentException("Can't use more than " + Long.SIZE + " bits or less than 0");
+		}
 		this.numbits = numbits;
 		this.maxvalue = BitUtil.maxVal(numbits);
 		
@@ -253,9 +256,9 @@ public class SequenceLog64Big implements DynamicSequence {
 
 		//assert numentries<Integer.MAX_VALUE;
 		
-		//if(value<0 || value>maxvalue) {
-			//throw new IllegalArgumentException("Value exceeds the maximum for this data structure");
-		//}
+		if(value<0 || value>maxvalue) {
+			throw new IllegalArgumentException("Value exceeds the maximum for this data structure");
+		}
 		
 		long neededSize = numWordsFor(numbits, numentries+1);
 		//System.out.println("append needed size:"+neededSize);

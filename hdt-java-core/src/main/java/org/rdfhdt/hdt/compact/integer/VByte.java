@@ -170,6 +170,7 @@ public class VByte {
 		}
 		out |= (data.get(offset+i) & 127L) << shift;
 		i++;
+		assert out >= 0;
 		value.setValue(out);
 		return i;
 	}

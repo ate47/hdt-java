@@ -175,6 +175,9 @@ public class BigMappedByteBuffer {
      * @param length the length to read
      */
     public void get(byte[] dst, int offset, int length) {
+        if (length == 0) {
+            return; //ignore
+        }
         final long position = position();
         int buffer1 = getBufferIndex(position);
         int buffer2 = getBufferIndex(position + length - 1);
