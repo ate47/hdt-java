@@ -86,6 +86,19 @@ public interface HDTOptions {
 	default boolean getBoolean(String key) {
 		return "true".equalsIgnoreCase(get(key));
 	}
+	/**
+	 * get a boolean
+	 *
+	 * @param key key
+	 * @return boolean or false if the value isn't defined
+	 */
+	default boolean getBoolean(String key, boolean defaultValue) {
+		String v = get(key);
+		if (v == null) {
+			return defaultValue;
+		}
+		return "true".equalsIgnoreCase(v);
+	}
 
 	/**
 	 * get a double

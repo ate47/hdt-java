@@ -192,6 +192,11 @@ public class HDTOptionsKeys {
 	@Key(type = Key.Type.BOOLEAN, desc = "Use the profiler to get the time of each section")
 	public static final String PROFILER_KEY = "profiler";
 	/**
+	 * Key for enabling the io profiler (if implemented), default to false. Boolean value
+	 */
+	@Key(type = Key.Type.BOOLEAN, desc = "Use the IO profiler to get the time of each section with IO, WILL SLOW DOWN THE PROCESS")
+	public static final String PROFILER_IO_KEY = "profiler.io";
+	/**
 	 * Key for the profiler output (if implemented). File value
 	 */
 	@Key(type = Key.Type.PATH, desc = "Profiler output file")

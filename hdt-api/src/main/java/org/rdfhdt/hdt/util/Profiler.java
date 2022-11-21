@@ -20,13 +20,21 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * tool to profile time
+ * tool to profile time and io
  *
  * @author Antoine Willerval
  */
 public class Profiler implements AutoCloseable {
+	private static Profiler global;
 	private static final AtomicLong PROFILER_IDS = new AtomicLong();
 	private static final Map<Long, Profiler> PROFILER = new HashMap<>();
+
+	/**
+	 * @return global profiler (if defined)
+	 */
+	public static Profiler getGlobal() {
+		return global;
+	}
 
 	/**
 	 * get a non-closed profiler
@@ -137,6 +145,7 @@ public class Profiler implements AutoCloseable {
 	private final String name;
 	private Section mainSection;
 	private boolean disabled;
+	private boolean io;
 	private Path outputPath;
 	private final long id;
 	private int deep = 0;
@@ -167,6 +176,7 @@ public class Profiler implements AutoCloseable {
 			if (profilerOutputLocation != null && !profilerOutputLocation.isEmpty()) {
 				outputPath = Path.of(profilerOutputLocation);
 			}
+			io = spec.getBoolean(HDTOptionsKeys.PROFILER_IO_KEY, false);
 		} else {
 			// no profiling by default
 			disabled = true;
@@ -203,6 +213,32 @@ public class Profiler implements AutoCloseable {
 
 	public boolean isDisabled() {
 		return disabled;
+	}
+
+	/**
+	 * @return is the io profiling enabled, useless if {@link #setGlobal()} isn't called
+	 */
+	public boolean isIoProfiling() {
+		return io;
+	}
+
+	/**
+	 * set this profiler as global to handle IO profiling
+	 */
+	public void setGlobal() {
+		if (global != null && global != this) {
+			throw new IllegalArgumentException("Can't set this profiler as global because another one is already in use");
+		}
+		global = this;
+	}
+
+	/**
+	 * unset (if was set) this profiler as global
+	 */
+	public void unsetGlobal() {
+		if (global == this) {
+			global = null;
+		}
 	}
 
 	/**
@@ -276,6 +312,7 @@ public class Profiler implements AutoCloseable {
 
 	@Override
 	public void close() {
+		unsetGlobal();
 		if (deep == 0) {
 			PROFILER.remove(getId());
 		} else {
@@ -291,6 +328,12 @@ public class Profiler implements AutoCloseable {
 		private final String name;
 		private final long start;
 		private long end;
+		private long totalIORead;
+		private long lastIORead;
+		private long totalIOWrite;
+		private long lastIOWrite;
+		private long bytesIORead;
+		private long bytesIOWrite;
 		private final List<Section> subSections;
 		private transient Section currentSection;
 
@@ -311,6 +354,13 @@ public class Profiler implements AutoCloseable {
 			start = readLong(is);
 			end = readLong(is);
 
+			totalIORead = readLong(is);
+			lastIORead = readLong(is);
+			totalIOWrite = readLong(is);
+			lastIOWrite = readLong(is);
+			bytesIORead = readLong(is);
+			bytesIOWrite = readLong(is);
+
 			int nameLength = (int) readLong(is);
 			byte[] nameBytes = readBuffer(is, nameLength);
 			name = new String(nameBytes, StandardCharsets.UTF_8);
@@ -329,6 +379,13 @@ public class Profiler implements AutoCloseable {
 
 			writeLong(os, start);
 			writeLong(os, end);
+
+			writeLong(os, totalIORead);
+			writeLong(os, lastIORead);
+			writeLong(os, totalIOWrite);
+			writeLong(os, lastIOWrite);
+			writeLong(os, bytesIORead);
+			writeLong(os, bytesIOWrite);
 
 			writeLong(os, nameBytes.length);
 			os.write(nameBytes);
@@ -395,6 +452,12 @@ public class Profiler implements AutoCloseable {
 			return start == section.start
 					&& end == section.end
 					&& name.equals(section.name)
+					&& totalIORead == section.totalIORead
+					&& lastIORead == section.lastIORead
+					&& totalIOWrite == section.totalIOWrite
+					&& lastIOWrite == section.lastIOWrite
+					&& bytesIORead == section.bytesIORead
+					&& bytesIOWrite == section.bytesIOWrite
 					&& subSections.equals(section.subSections);
 		}
 
@@ -403,6 +466,12 @@ public class Profiler implements AutoCloseable {
 			int result = name.hashCode();
 			result = 31 * result + (int) (start ^ (start >>> 32));
 			result = 31 * result + (int) (end ^ (end >>> 32));
+			result = 31 * result + (int) (totalIORead ^ (totalIORead >>> 32));
+			result = 31 * result + (int) (lastIORead ^ (lastIORead >>> 32));
+			result = 31 * result + (int) (totalIOWrite ^ (totalIOWrite >>> 32));
+			result = 31 * result + (int) (lastIOWrite ^ (lastIOWrite >>> 32));
+			result = 31 * result + (int) (bytesIORead ^ (bytesIORead >>> 32));
+			result = 31 * result + (int) (bytesIOWrite ^ (bytesIOWrite >>> 32));
 			result = 31 * result + subSections.hashCode();
 			return result;
 		}
@@ -429,6 +498,66 @@ public class Profiler implements AutoCloseable {
 			return end - start;
 		}
 
+		public void startIOWrite() {
+			if (currentSection == null) {
+				lastIOWrite = System.nanoTime();
+			} else {
+				currentSection.startIOWrite();
+			}
+		}
+
+		public void endIOWrite(long write) {
+			if (currentSection == null) {
+				if (lastIOWrite != 0) {
+					totalIOWrite = System.nanoTime() - lastIOWrite;
+					lastIOWrite = 0;
+					bytesIOWrite += write;
+				} else {
+					throw new RuntimeException("IO not started");
+				}
+			} else {
+				currentSection.endIOWrite(write);
+			}
+		}
+
+		public long getTotalIORead() {
+			return totalIORead;
+		}
+
+		public long getTotalIOWrite() {
+			return totalIOWrite;
+		}
+
+		public long getBytesIOReadNano() {
+			return totalIORead;
+		}
+
+		public long getBytesIOWriteNano() {
+			return bytesIOWrite;
+		}
+
+		public void startIORead() {
+			if (currentSection == null) {
+				lastIORead = System.nanoTime();
+			} else {
+				currentSection.startIORead();
+			}
+		}
+
+		public void endIORead(long read) {
+			if (currentSection == null) {
+				if (lastIORead != 0) {
+					totalIORead = System.nanoTime() - lastIORead;
+					lastIORead = 0;
+					bytesIORead += read;
+				} else {
+					throw new RuntimeException("IO not started");
+				}
+			} else {
+				currentSection.endIORead(read);
+			}
+		}
+
 		/**
 		 * @return start timestamp
 		 */
@@ -444,7 +573,7 @@ public class Profiler implements AutoCloseable {
 		}
 
 		void writeProfiling(String prefix, boolean isLast) {
-			System.out.println(prefix + (getSubSections().isEmpty() ? "+--" : "+-+") + " [" + getName() + "] " + "-".repeat(1 + maxSize - getName().length()) + " elapsed=" + getMillis() + "ms");
+			System.out.println(prefix + (getSubSections().isEmpty() ? "+--" : "+-+") + " [" + getName() + "] " + "-".repeat(1 + maxSize - getName().length()) + " elapsed=" + getMillis() + "ms" + (isIoProfiling() ? (", w=" + (getTotalIORead() / 1_000_000) + "ms, r=" + (getTotalIOWrite() / 1_000_000) + "ms") : ""));
 			for (int i = 0; i < subSections.size(); i++) {
 				Section s = subSections.get(i);
 				s.writeProfiling(prefix + (isLast ? "  " : "| "), i == subSections.size() - 1);
@@ -458,6 +587,12 @@ public class Profiler implements AutoCloseable {
 			int result = name.length();
 			result = 31 * result + (int) (start ^ (start >>> 32));
 			result = 31 * result + (int) (end ^ (end >>> 32));
+			result = 31 * result + (int) (totalIORead ^ (totalIORead >>> 32));
+			result = 31 * result + (int) (lastIORead ^ (lastIORead >>> 32));
+			result = 31 * result + (int) (totalIOWrite ^ (totalIOWrite >>> 32));
+			result = 31 * result + (int) (lastIOWrite ^ (lastIOWrite >>> 32));
+			result = 31 * result + (int) (bytesIORead ^ (bytesIORead >>> 32));
+			result = 31 * result + (int) (bytesIOWrite ^ (bytesIOWrite >>> 32));
 			for (Section subSection : subSections) {
 				result = 31 * result ^ subSection.computeCheckSum();
 			}
