@@ -1,4 +1,4 @@
-package org.rdfhdt.hdt.util.io;
+package org.rdfhdt.hdt.util.io.impl;
 
 /**
  * Utility class to trace unclosed mapped buffer.
@@ -10,13 +10,13 @@ public class CloseMappedByteBufferUtil {
      * start recording map tests
      */
     public static void markMapTest() {
-        CloseMappedByteBuffer.markMapTest();
+        CloseMappedByteBufferImpl.markMapTest();
     }
 
     /**
      * end recording of map tests and crash if a mapped element wasn't closed
      */
     public static void crashMapTest() {
-        CloseMappedByteBuffer.crashMapTest();
+        CloseMappedByteBufferImpl.crashMapTest();
     }
 }

@@ -1,5 +1,9 @@
 package org.rdfhdt.hdt.util.io;
 
+import org.rdfhdt.hdt.util.Profiler;
+import org.rdfhdt.hdt.util.io.impl.ProfileInputStream;
+import org.rdfhdt.hdt.util.io.impl.ProfileOutputStream;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -58,12 +62,16 @@ public class CloseSuppressFileProvider extends FileSystemProvider {
 
     @Override
     public InputStream newInputStream(Path path, OpenOption... options) throws IOException {
-        return provider.newInputStream((path instanceof CloseSuppressPath ? ((CloseSuppressPath) path).getJavaPath() : path), options);
+        InputStream stream = provider.newInputStream((path instanceof CloseSuppressPath ? ((CloseSuppressPath) path).getJavaPath() : path), options);
+        Profiler global = Profiler.getGlobal();
+        return global == null ? stream : new ProfileInputStream(stream, global);
     }
 
     @Override
     public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
-        return provider.newOutputStream((path instanceof CloseSuppressPath ? ((CloseSuppressPath) path).getJavaPath() : path), options);
+        OutputStream stream = provider.newOutputStream((path instanceof CloseSuppressPath ? ((CloseSuppressPath) path).getJavaPath() : path), options);
+        Profiler global = Profiler.getGlobal();
+        return global == null ? stream : new ProfileOutputStream(stream, global);
     }
 
     @Override

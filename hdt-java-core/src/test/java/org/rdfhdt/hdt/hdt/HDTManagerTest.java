@@ -34,6 +34,7 @@ import org.rdfhdt.hdt.triples.TripleID;
 import org.rdfhdt.hdt.triples.TripleString;
 import org.rdfhdt.hdt.triples.impl.utils.HDTTestUtils;
 import org.rdfhdt.hdt.util.LargeFakeDataSetStreamSupplier;
+import org.rdfhdt.hdt.util.Profiler;
 import org.rdfhdt.hdt.util.StopWatch;
 import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 import org.rdfhdt.hdt.util.io.AbstractMapMemoryTest;
@@ -96,10 +97,18 @@ public class HDTManagerTest {
 		public TemporaryFolder tempDir = new TemporaryFolder();
 		protected HDTSpecification spec;
 		protected Path rootFolder;
+		protected Profiler profiler;
 
 		@Before
 		public void setupManager() throws IOException {
 			spec = new HDTSpecification();
+			spec.set(HDTOptionsKeys.PROFILER_IO_KEY, true);
+			spec.set(HDTOptionsKeys.PROFILER_OUTPUT_KEY, tempDir.newFile().getAbsolutePath());
+			spec.set(HDTOptionsKeys.PROFILER_KEY, true);
+			profiler = new Profiler("HDTManagerTest", spec);
+			assertTrue(profiler.isIoProfiling());
+			profiler.setGlobal();
+			spec.set(HDTOptionsKeys.PROFILER_KEY, profiler);
 			rootFolder = tempDir.newFolder().toPath();
 			spec.set(HDTOptionsKeys.LOADER_DISK_LOCATION_KEY, rootFolder.toAbsolutePath().toString());
 			ExceptionThread.startDebug();
@@ -107,6 +116,7 @@ public class HDTManagerTest {
 
 		@After
 		public void closeManager() throws IOException {
+			profiler.pushSection("test-exists");
 			ExceptionThread.endDebug();
 			if (Files.exists(rootFolder)) {
 				try (Stream<Path> s = Files.list(rootFolder)) {
@@ -114,6 +124,9 @@ public class HDTManagerTest {
 					assertFalse("root folder not empty", s.findAny().isPresent());
 				}
 			}
+			profiler.popSection();
+			profiler.unsetGlobal();
+			profiler.writeProfiling();
 		}
 
 		@Override

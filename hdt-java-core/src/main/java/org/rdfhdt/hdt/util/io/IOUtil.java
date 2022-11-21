@@ -31,7 +31,10 @@ import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 import org.rdfhdt.hdt.compact.integer.VByte;
 import org.rdfhdt.hdt.enums.CompressionType;
 import org.rdfhdt.hdt.listener.ProgressListener;
+import org.rdfhdt.hdt.util.Profiler;
 import org.rdfhdt.hdt.util.Reference;
+import org.rdfhdt.hdt.util.io.impl.CloseMappedByteBufferImpl;
+import org.rdfhdt.hdt.util.io.impl.CloseMappedByteBufferProfileImpl;
 import org.rdfhdt.hdt.util.string.ByteString;
 import org.rdfhdt.hdt.util.string.ByteStringUtil;
 import org.visnow.jlargearrays.LargeArrayUtils;
@@ -100,7 +103,12 @@ public class IOUtil {
 	 * @throws IOException io exception
 	 */
 	public static CloseMappedByteBuffer mapChannel(String filename, FileChannel ch, FileChannel.MapMode mode, long position, long size) throws IOException {
-		return new CloseMappedByteBuffer(filename, ch.map(mode, position, size), false);
+		Profiler global = Profiler.getGlobal();
+		if (global != null) {
+			return new CloseMappedByteBufferProfileImpl(filename, ch.map(mode, position, size), false, global);
+		} else {
+			return new CloseMappedByteBufferImpl(filename, ch.map(mode, position, size), false);
+		}
 	}
 
 	/**

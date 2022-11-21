@@ -1,5 +1,7 @@
 package org.rdfhdt.hdt.util.io;
 
+import org.rdfhdt.hdt.util.io.impl.CloseMappedByteBufferImpl;
+
 import java.io.IOException;
 import java.nio.*;
 import java.nio.channels.FileChannel;
@@ -144,7 +146,7 @@ public class BigMappedByteBuffer {
      * @return duplicate the buffer
      */
     public BigMappedByteBuffer duplicate() {
-        return new BigMappedByteBuffer(this, b -> new CloseMappedByteBuffer(null, b.duplicate(), true));
+        return new BigMappedByteBuffer(this, b -> new CloseMappedByteBufferImpl(null, b.duplicate(), true));
     }
 
     /**

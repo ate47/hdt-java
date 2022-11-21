@@ -2,6 +2,7 @@ package org.rdfhdt.hdt.util.io;
 
 import org.junit.After;
 import org.junit.Before;
+import org.rdfhdt.hdt.util.io.impl.CloseMappedByteBufferUtil;
 
 /**
  * extend this class to all test using mapped memory to check if no unclose mapped file are present.
