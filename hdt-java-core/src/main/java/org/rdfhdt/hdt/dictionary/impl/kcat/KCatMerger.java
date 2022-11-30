@@ -288,7 +288,7 @@ public class KCatMerger implements AutoCloseable {
 									return mapper.apply(hdtIndex, e);
 								},
 								LocatedIndexedNode::compareTo,
-								List.of(sections),
+								Arrays.asList(sections),
 								0,
 								sections.length
 						),
@@ -505,7 +505,7 @@ public class KCatMerger implements AutoCloseable {
 			throw new RuntimeException(e);
 		} finally {
 			Closer.of(sectionSubject, sectionPredicate, sectionObject, sectionShared)
-					.with(sectionSub.values())
+					.with(sectionSub == null ? List.of() : sectionSub.values())
 					.with(subjectsMaps)
 					.with(predicatesMaps)
 					.with(objectsMaps)
