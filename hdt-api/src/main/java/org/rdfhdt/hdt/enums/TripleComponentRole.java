@@ -27,15 +27,32 @@
 
 package org.rdfhdt.hdt.enums;
 
+import java.util.function.Supplier;
+
 /**
  * Indicates the position of the triple, mainly in the dictionary
  * 
  */
 public enum TripleComponentRole {
 	/** The triple is a subject */
-	SUBJECT,
+	SUBJECT(() -> DictionarySectionRole.SUBJECT),
 	/** The triple is a predicate */
-	PREDICATE,
+	PREDICATE(() -> DictionarySectionRole.PREDICATE),
 	/** The triple is an object */
-	OBJECT,
+	OBJECT(() -> DictionarySectionRole.OBJECT);
+
+	private DictionarySectionRole dictionarySectionRole;
+	private final Supplier<DictionarySectionRole> dictionarySectionRoleSupplier;
+
+	TripleComponentRole(Supplier<DictionarySectionRole> dictionarySectionRoleSupplier) {
+		this.dictionarySectionRoleSupplier = dictionarySectionRoleSupplier;
+	}
+
+	public DictionarySectionRole asDictionarySectionRole() {
+		// use supplier for cyclic dependency
+		if (dictionarySectionRole == null) {
+			dictionarySectionRole = dictionarySectionRoleSupplier.get();
+		}
+		return dictionarySectionRole;
+	}
 }

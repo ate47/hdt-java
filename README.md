@@ -8,6 +8,7 @@ HDT-lib is a Java Library that implements the W3C Submission (http://www.w3.org/
 
 It provides several components:
 - hdt-java-api: Abstract interface for dealing with HDT files.
+- hdt-search: Abstract interface to search in HDT files.
 - hdt-java-core: Core library for accessing HDT files programmatically from java. It allows creating HDT files from RDF and converting HDT files back to RDF. It also provides a Search interface to find triples that match a specific triple pattern.
 - hdt-java-cli: Commandline tools to convert RDF to HDT, merge two HDT files and access HDT files from a terminal.
 - hdt-jena: Jena integration. Provides a Jena Graph implementation that allows accessing HDT files as normal Jena Models. In turn, this can be used with Jena ARQ to provide more advanced searches, such as SPARQL, and even setting up SPARQL Endpoints with Fuseki.
@@ -34,6 +35,7 @@ Each module has a different License. Core is LGPL, examples and tools are Apache
 * `hdt-api`: Apache License
 * `hdt-java-cli`: (Commandline tools and examples): Apache License
 * `hdt-java-core`: Lesser General Public License
+* `hdt-search`: Apache License
 * `hdt-jena`: Lesser General Public License
 * `hdt-fuseki`(< 2.2.0): Apache License
 
