@@ -20,7 +20,6 @@ public class ParallelSortableArrayList<T> implements List<T> {
 	public static final double GROW_FACTOR = 1.5f;
 	private int used;
 	private T[] array;
-	private final Class<T[]> type;
 
 	public ParallelSortableArrayList(Class<T[]> type) {
 		this(type, 16);
@@ -28,7 +27,6 @@ public class ParallelSortableArrayList<T> implements List<T> {
 
 	@SuppressWarnings("unchecked")
 	public ParallelSortableArrayList(Class<T[]> type, int capacity) {
-		this.type = type;
 		array = (T[]) Array.newInstance(type.getComponentType(), capacity);
 	}
 
@@ -36,7 +34,7 @@ public class ParallelSortableArrayList<T> implements List<T> {
 		if (newSize >= array.length) {
 			// don't allocate beyond the max size
 			int allocate = (int) Math.min(Integer.MAX_VALUE - 5L, (long) (newSize * GROW_FACTOR));
-			array = Arrays.copyOf(array, allocate, type);
+			array = Arrays.copyOf(array, allocate);
 		}
 	}
 
@@ -59,7 +57,11 @@ public class ParallelSortableArrayList<T> implements List<T> {
 
 	@Override
 	public boolean addAll(Collection<? extends T> c) {
-		throw new NotImplementedException();
+		checkSize(used + c.size());
+		for (T element : c) {
+			array[used++] = element;
+		}
+		return true;
 	}
 
 	@Override

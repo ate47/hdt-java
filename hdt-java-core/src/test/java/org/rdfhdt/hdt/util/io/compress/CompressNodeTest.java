@@ -1,17 +1,32 @@
 package org.rdfhdt.hdt.util.io.compress;
 
+import org.apache.commons.io.file.PathUtils;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
+import org.rdfhdt.hdt.listener.ProgressListener;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class CompressNodeTest {
+
+	@Rule
+	public TemporaryFolder tempDir = new TemporaryFolder();
 
 	@Test
 	public void writeReadTest() throws InterruptedException, IOException {
@@ -26,18 +41,18 @@ public class CompressNodeTest {
 				);
 		new ExceptionThread(() -> {
 			CompressNodeReader reader = new CompressNodeReader(in);
-			Assert.assertEquals(nodes.size(), reader.getSize());
+			assertEquals(nodes.size(), reader.getSize());
 			try {
 				for (IndexedNode excepted : nodes) {
 					Assert.assertTrue(reader.hasNext());
 					IndexedNode actual = reader.next();
-					Assert.assertEquals(excepted.getIndex(), actual.getIndex());
+					assertEquals(excepted.getIndex(), actual.getIndex());
 					CompressTest.assertCharSequenceEquals("indexed node", excepted.getNode(), actual.getNode());
 				}
 				reader.checkComplete();
-				Assert.assertEquals(34, in.read());
-				Assert.assertEquals(12, in.read());
-				Assert.assertEquals(27, in.read());
+				assertEquals(34, in.read());
+				assertEquals(12, in.read());
+				assertEquals(27, in.read());
 			} finally {
 				in.close();
 			}
@@ -73,18 +88,18 @@ public class CompressNodeTest {
 				);
 		new ExceptionThread(() -> {
 			CompressNodeReader reader = new CompressNodeReader(in);
-			Assert.assertEquals(nodes.size(), reader.getSize());
+			assertEquals(nodes.size(), reader.getSize());
 			try {
 				for (IndexedNode excepted : nodes) {
 					Assert.assertTrue(reader.hasNext());
 					IndexedNode actual = reader.next();
-					Assert.assertEquals(excepted.getIndex(), actual.getIndex());
+					assertEquals(excepted.getIndex(), actual.getIndex());
 					CompressTest.assertCharSequenceEquals("indexed node", excepted.getNode(), actual.getNode());
 				}
 				reader.checkComplete();
-				Assert.assertEquals(34, in.read());
-				Assert.assertEquals(12, in.read());
-				Assert.assertEquals(27, in.read());
+				assertEquals(34, in.read());
+				assertEquals(12, in.read());
+				assertEquals(27, in.read());
 			} finally {
 				in.close();
 			}
@@ -115,24 +130,24 @@ public class CompressNodeTest {
 				);
 		new ExceptionThread(() -> {
 			CompressNodeReader reader = new CompressNodeReader(in);
-			Assert.assertEquals(nodes.size(), reader.getSize());
+			assertEquals(nodes.size(), reader.getSize());
 			try {
 				for (IndexedNode excepted : nodes) {
 					Assert.assertTrue(reader.hasNext());
 					IndexedNode actual = reader.read();
-					Assert.assertEquals(excepted.getIndex(), actual.getIndex());
+					assertEquals(excepted.getIndex(), actual.getIndex());
 					CompressTest.assertCharSequenceEquals("indexed node", excepted.getNode(), actual.getNode());
 					String actual1Node = actual.getNode().toString();
 					IndexedNode actual2 = reader.read();
-					Assert.assertEquals(actual.getIndex(), actual2.getIndex());
+					assertEquals(actual.getIndex(), actual2.getIndex());
 					CompressTest.assertCharSequenceEquals("post pass indexed node", actual1Node, actual2.getNode());
 					Assert.assertTrue(reader.hasNext());
 					reader.pass();
 				}
 				reader.checkComplete();
-				Assert.assertEquals(34, in.read());
-				Assert.assertEquals(12, in.read());
-				Assert.assertEquals(27, in.read());
+				assertEquals(34, in.read());
+				assertEquals(12, in.read());
+				assertEquals(27, in.read());
 			} finally {
 				in.close();
 			}
@@ -190,18 +205,18 @@ public class CompressNodeTest {
 		);
 		new ExceptionThread(() -> {
 			CompressNodeReader reader = new CompressNodeReader(finalIn);
-			Assert.assertEquals(finalExcepted.size(), reader.getSize());
+			assertEquals(finalExcepted.size(), reader.getSize());
 			try {
 				for (IndexedNode excepted : finalExcepted) {
 					Assert.assertTrue(reader.hasNext());
 					IndexedNode actual = reader.next();
-					Assert.assertEquals(excepted.getIndex(), actual.getIndex());
+					assertEquals(excepted.getIndex(), actual.getIndex());
 					CompressTest.assertCharSequenceEquals("merged node", excepted.getNode(), actual.getNode());
 				}
 				reader.checkComplete();
-				Assert.assertEquals(98, finalIn.read());
-				Assert.assertEquals(18, finalIn.read());
-				Assert.assertEquals(22, finalIn.read());
+				assertEquals(98, finalIn.read());
+				assertEquals(18, finalIn.read());
+				assertEquals(22, finalIn.read());
 			} finally {
 				finalIn.close();
 			}
@@ -233,13 +248,13 @@ public class CompressNodeTest {
 						finalOut.write(18);
 						finalOut.write(22);
 
-						Assert.assertEquals(34, node1In.read());
-						Assert.assertEquals(12, node1In.read());
-						Assert.assertEquals(27, node1In.read());
+						assertEquals(34, node1In.read());
+						assertEquals(12, node1In.read());
+						assertEquals(27, node1In.read());
 
-						Assert.assertEquals(42, node2In.read());
-						Assert.assertEquals(19, node2In.read());
-						Assert.assertEquals(1, node2In.read());
+						assertEquals(42, node2In.read());
+						assertEquals(19, node2In.read());
+						assertEquals(1, node2In.read());
 					} finally {
 						try {
 							node1In.close();
@@ -253,5 +268,70 @@ public class CompressNodeTest {
 					}
 				}, "MergeTest")
 		).startAll().joinAndCrashIfRequired();
+	}
+
+	@Test
+	public void dupeCompressTest() throws IOException {
+		Path root = tempDir.newFolder().toPath();
+		try {
+			List<IndexedNode> write = List.of(
+					new IndexedNode("aa", 0),
+					new IndexedNode("aa", 1),
+					new IndexedNode("b", 2),
+					new IndexedNode("c", 3),
+					new IndexedNode("d", 4),
+					new IndexedNode("d", 5),
+					new IndexedNode("d", 6)
+			);
+			List<IndexedNode> read = List.of(
+					new IndexedNode("aa", 0),
+					new IndexedNode("b", 2),
+					new IndexedNode("c", 3),
+					new IndexedNode("d", 4)
+			);
+			List<Tuple> tuplesExcepted = List.of(
+					new Tuple(1, 0),
+					new Tuple(5, 4),
+					new Tuple(6, 4)
+			);
+			List<Tuple> tuplesActual = new ArrayList<>();
+
+			Path out = root.resolve("out");
+			CompressUtil.writeCompressedSectionDupe(
+					ExceptionIterator.of(write.iterator()),
+					write.size(),
+					out,
+					ProgressListener.ignore(),
+					(tripleID, mappedId) ->
+							tuplesActual.add(new Tuple(tripleID, mappedId))
+			);
+
+			for (int i = 0; i < tuplesExcepted.size(); i++) {
+				Tuple actual = tuplesActual.get(i);
+				Tuple expected = tuplesExcepted.get(i);
+				assertEquals(expected.a, actual.a);
+				assertEquals(expected.b, actual.b);
+			}
+
+			try (CompressNodeReader reader = new CompressNodeReader(Files.newInputStream(out))) {
+				assertEquals(read.size(), reader.getSize());
+				for (IndexedNode node : read) {
+					assertTrue(reader.hasNext());
+					assertEquals(node, reader.next());
+				}
+				assertFalse(reader.hasNext());
+			}
+		} finally {
+			PathUtils.deleteDirectory(root);
+		}
+	}
+
+	private static class Tuple {
+		long a, b;
+
+		public Tuple(long a, long b) {
+			this.a = a;
+			this.b = b;
+		}
 	}
 }

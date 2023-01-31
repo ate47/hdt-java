@@ -1,10 +1,12 @@
 package org.rdfhdt.hdt.hdt.impl.diskimport;
 
+import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressNodeMergeIterator;
 import org.rdfhdt.hdt.util.io.compress.CompressNodeReader;
+import org.rdfhdt.hdt.util.io.compress.MappedId;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -71,6 +73,21 @@ public class CompressionResultPartial implements CompressionResult {
 	@Override
 	public ExceptionIterator<IndexedNode, IOException> getObjects() {
 		return object;
+	}
+
+	@Override
+	public ExceptionIterator<MappedId, IOException> getMappedIdSubjects() {
+		throw new NotImplementedException("mapped id");
+	}
+
+	@Override
+	public ExceptionIterator<MappedId, IOException> getMappedIdPredicates() {
+		throw new NotImplementedException("mapped id");
+	}
+
+	@Override
+	public ExceptionIterator<MappedId, IOException> getMappedIdObjects() {
+		throw new NotImplementedException("mapped id");
 	}
 
 	@Override

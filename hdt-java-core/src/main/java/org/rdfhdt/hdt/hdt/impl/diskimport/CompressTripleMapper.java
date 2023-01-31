@@ -128,6 +128,33 @@ public class CompressTripleMapper implements CompressFourSectionDictionary.NodeC
 		return extract(objects, id);
 	}
 
+	/**
+	 * clone the subject at location src into dest
+	 * @param destId destination id
+	 * @param srcId source id
+	 */
+	public void cloneSubject(long destId, long srcId) {
+		subjects.set(destId, subjects.get(srcId));
+	}
+
+	/**
+	 * clone the predicate at location src into dest
+	 * @param destId destination id
+	 * @param srcId source id
+	 */
+	public void clonePredicate(long destId, long srcId) {
+		predicates.set(destId, predicates.get(srcId));
+	}
+
+	/**
+	 * clone the object at location src into dest
+	 * @param destId destination id
+	 * @param srcId source id
+	 */
+	public void cloneObject(long destId, long srcId) {
+		objects.set(destId, objects.get(srcId));
+	}
+
 	private long extract(LongArray array, long id) {
 		checkShared();
 		// compute shared if required

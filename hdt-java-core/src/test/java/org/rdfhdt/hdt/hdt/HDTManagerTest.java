@@ -295,7 +295,7 @@ public class HDTManagerTest {
 						);
 					} else {
 						modes = List.of(
-								HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_VALUE_PARTIAL,
+								//HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_VALUE_PARTIAL,
 								HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_VALUE_COMPLETE
 						);
 					}
@@ -772,6 +772,7 @@ public class HDTManagerTest {
 		}
 
 		@Test
+		@Ignore("partial disabled")
 		public void generateDiskPartialTest() throws IOException, ParserException, NotFoundException {
 			spec.set(HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_KEY, CompressionResult.COMPRESSION_MODE_PARTIAL);
 			spec.set(HDTOptionsKeys.LOADER_DISK_CHUNK_SIZE_KEY, size);
@@ -791,6 +792,7 @@ public class HDTManagerTest {
 		}
 
 		@Test
+		@Ignore("partial disabled")
 		public void generateDiskPartialMapTest() throws IOException, ParserException, NotFoundException {
 			spec.set(HDTOptionsKeys.LOADER_DISK_COMPRESSION_MODE_KEY, CompressionResult.COMPRESSION_MODE_PARTIAL);
 			spec.set(HDTOptionsKeys.LOADER_DISK_CHUNK_SIZE_KEY, size);

@@ -3,6 +3,7 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.options.HDTOptionsKeys;
 import org.rdfhdt.hdt.triples.IndexedNode;
+import org.rdfhdt.hdt.util.io.compress.MappedId;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,6 +40,20 @@ public interface CompressionResult extends Closeable {
 	 * @return a sorted iterator of objects
 	 */
 	ExceptionIterator<IndexedNode, IOException> getObjects();
+
+	/**
+	 * @return a sorted iterator of subject
+	 */
+	ExceptionIterator<MappedId, IOException> getMappedIdSubjects();
+	/**
+	 * @return a sorted iterator of predicates
+	 */
+	ExceptionIterator<MappedId, IOException> getMappedIdPredicates();
+	/**
+	 * @return a sorted iterator of objects
+	 */
+	ExceptionIterator<MappedId, IOException> getMappedIdObjects();
+
 	/**
 	 * @return the count of subjects
 	 */

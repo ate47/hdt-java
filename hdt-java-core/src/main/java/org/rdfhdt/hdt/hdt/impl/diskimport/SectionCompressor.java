@@ -1,6 +1,9 @@
 package org.rdfhdt.hdt.hdt.impl.diskimport;
 
+import org.rdfhdt.hdt.compact.integer.VByte;
+import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.iterator.utils.AsyncIteratorFetcher;
+import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.iterator.utils.SizeFetcher;
 import org.rdfhdt.hdt.listener.MultiThreadListener;
 import org.rdfhdt.hdt.triples.IndexedNode;
@@ -18,16 +21,15 @@ import org.rdfhdt.hdt.util.io.compress.CompressUtil;
 import org.rdfhdt.hdt.util.listener.IntermediateListener;
 import org.rdfhdt.hdt.util.string.ByteString;
 import org.rdfhdt.hdt.util.string.CompactString;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -39,8 +41,6 @@ import java.util.function.Supplier;
  * @author Antoine Willerval
  */
 public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString, SizeFetcher<TripleString>> {
-	private static final Logger log = LoggerFactory.getLogger(SectionCompressor.class);
-
 	private final CloseSuppressPath baseFileName;
 	private final AsyncIteratorFetcher<TripleString> source;
 	private final MultiThreadListener listener;
@@ -49,16 +49,14 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 	private final int bufferSize;
 	private final long chunkSize;
 	private final int k;
-	private final boolean debugSleepKwayDict;
 
-	public SectionCompressor(CloseSuppressPath baseFileName, AsyncIteratorFetcher<TripleString> source, MultiThreadListener listener, int bufferSize, long chunkSize, int k, boolean debugSleepKwayDict) {
+	public SectionCompressor(CloseSuppressPath baseFileName, AsyncIteratorFetcher<TripleString> source, MultiThreadListener listener, int bufferSize, long chunkSize, int k) {
 		this.source = source;
 		this.listener = listener;
 		this.baseFileName = baseFileName;
 		this.bufferSize = bufferSize;
 		this.chunkSize = chunkSize;
 		this.k = k;
-		this.debugSleepKwayDict = debugSleepKwayDict;
 	}
 
 	/*
@@ -122,11 +120,13 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 	 * Compress the stream into multiple pre-sections files and merge them on the fly
 	 *
 	 * @return compression result
-	 * @throws IOException io exception
 	 * @see #compressToFile(int)
 	 * @see #compress(int, String)
 	 */
-	public CompressionResult compressPartial() throws IOException, KWayMerger.KWayMergerException {
+	public CompressionResult compressPartial() {
+		// TODO: reimplement with hash-map mapping
+		throw new NotImplementedException("compressPartial");
+		/*
 		List<TripleFile> files = new ArrayList<>();
 		baseFileName.closeWithDeleteRecurse();
 		try {
@@ -149,6 +149,7 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 			}
 		}
 		return new CompressionResultPartial(files, triples.get(), ntRawSize.get());
+		*/
 	}
 
 	/**
@@ -178,96 +179,116 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 		}
 	}
 
+	private final Object staticReader = new Object() {
+	};
 	@Override
 	public void createChunk(SizeFetcher<TripleString> fetcher, CloseSuppressPath output) throws KWayMerger.KWayMergerException {
+		listener.notifyProgress(0, "waiting for reading");
+		synchronized (staticReader) {
+			listener.notifyProgress(0, "start reading triples");
 
-		listener.notifyProgress(0, "start reading triples");
+			ParallelSortableArrayList<IndexedNode> subjects = new ParallelSortableArrayList<>(IndexedNode[].class);
+			ParallelSortableArrayList<IndexedNode> predicates = new ParallelSortableArrayList<>(IndexedNode[].class);
+			ParallelSortableArrayList<IndexedNode> objects = new ParallelSortableArrayList<>(IndexedNode[].class);
 
-		ParallelSortableArrayList<IndexedNode> subjects = new ParallelSortableArrayList<>(IndexedNode[].class);
-		ParallelSortableArrayList<IndexedNode> predicates = new ParallelSortableArrayList<>(IndexedNode[].class);
-		ParallelSortableArrayList<IndexedNode> objects = new ParallelSortableArrayList<>(IndexedNode[].class);
-
-		listener.notifyProgress(10, "reading triples " + triples.get());
-		TripleString next;
-		while ((next = fetcher.get()) != null) {
-
-			if (debugSleepKwayDict) {
-				try {
-					Thread.sleep(25);
-				} catch (InterruptedException e) {
-					throw new RuntimeException(e);
-				}
-			}
-
-			// load the map triple and write it in the writer
-			long tripleID = triples.incrementAndGet();
-
-			// get indexed mapped char sequence
-			IndexedNode subjectNode = new IndexedNode(
-					convertSubject(next.getSubject()),
-					tripleID
-			);
-			subjects.add(subjectNode);
-
-			// get indexed mapped char sequence
-			IndexedNode predicateNode = new IndexedNode(
-					convertPredicate(next.getPredicate()),
-					tripleID
-			);
-			predicates.add(predicateNode);
-
-			// get indexed mapped char sequence
-			IndexedNode objectNode = new IndexedNode(
-					convertObject(next.getObject()),
-					tripleID
-			);
-			objects.add(objectNode);
-
-
-			if (tripleID % 100_000 == 0) {
-				listener.notifyProgress(10, "reading triples " + tripleID);
-			}
-			// too much ram allowed?
-			if (subjects.size() == Integer.MAX_VALUE - 6) {
-				break;
-			}
-		}
-
-		ntRawSize.addAndGet(fetcher.getSize());
-
-		try {
-			TripleFile sections = new TripleFile(output, true);
 			try {
-				IntermediateListener il = new IntermediateListener(listener);
-				il.setRange(70, 80);
-				il.setPrefix("creating subjects section " + sections.root.getFileName() + ": ");
-				il.notifyProgress(0, "sorting");
-				try (OutputStream stream = sections.openWSubject()) {
+				TripleFile sections = new TripleFile(output, true);
+
+				listener.notifyProgress(10, "reading triples " + triples.get());
+				TripleString next;
+				while ((next = fetcher.get()) != null) {
+					// load the map triple and write it in the writer
+					long tripleID = triples.incrementAndGet();
+
+					// convert and copy the nodes
+					// get indexed mapped char sequence
+					IndexedNode subjectNode = new IndexedNode(
+							convertSubject(next.getSubject()),
+							tripleID
+					);
+					subjects.add(subjectNode);
+
+					// get indexed mapped char sequence
+					IndexedNode predicateNode = new IndexedNode(
+							convertPredicate(next.getPredicate()),
+							tripleID
+					);
+					predicates.add(predicateNode);
+
+					// get indexed mapped char sequence
+					IndexedNode objectNode = new IndexedNode(
+							convertObject(next.getObject()),
+							tripleID
+					);
+					objects.add(objectNode);
+
+					// write the mapping if it exists
+					if (tripleID % 100_000 == 0) {
+						listener.notifyProgress(10, "reading triples " + tripleID);
+					}
+
+					// too much ram allowed?
+					if (subjects.size() == Integer.MAX_VALUE - 10) {
+						break;
+					}
+				}
+
+				ntRawSize.addAndGet(fetcher.getSize());
+
+				try (
+						OutputStream mappingSubject = sections.openWMappingSubject();
+						OutputStream mappingPredicate = sections.openWMappingPredicate();
+						OutputStream mappingObject = sections.openWMappingObject()
+				) {
+
+					IntermediateListener il = new IntermediateListener(listener);
+					il.setRange(70, 80);
+					il.setPrefix("creating subjects section " + sections.root.getFileName() + ": ");
+					il.notifyProgress(0, "sorting");
 					subjects.parallelSort(IndexedNode::compareTo);
-					CompressUtil.writeCompressedSection(subjects, stream, il);
-				}
-				il.setRange(80, 90);
-				il.setPrefix("creating predicates section " + sections.root.getFileName() + ": ");
-				il.notifyProgress(0, "sorting");
-				try (OutputStream stream = sections.openWPredicate()) {
+					CompressUtil.writeCompressedSectionDupe(
+							ExceptionIterator.of(subjects.iterator()),
+							subjects.size(),
+							sections.getSubjectPath(),
+							il,
+							(tripleId, mappedId) -> {
+								VByte.encode(mappingSubject, tripleId);
+								VByte.encode(mappingSubject, mappedId);
+							});
+
+					il.setRange(80, 90);
+					il.setPrefix("creating predicates section " + sections.root.getFileName() + ": ");
+					il.notifyProgress(0, "sorting");
 					predicates.parallelSort(IndexedNode::compareTo);
-					CompressUtil.writeCompressedSection(predicates, stream, il);
-				}
-				il.setRange(90, 100);
-				il.setPrefix("creating objects section " + sections.root.getFileName() + ": ");
-				il.notifyProgress(0, "sorting");
-				try (OutputStream stream = sections.openWObject()) {
+					CompressUtil.writeCompressedSectionDupe(
+							ExceptionIterator.of(predicates.iterator()),
+							predicates.size(),
+							sections.getPredicatePath(),
+							il,
+							(tripleId, mappedId) -> {
+								VByte.encode(mappingPredicate, tripleId);
+								VByte.encode(mappingPredicate, mappedId);
+							});
+
+					il.setRange(90, 100);
+					il.setPrefix("creating objects section " + sections.root.getFileName() + ": ");
+					il.notifyProgress(0, "sorting");
 					objects.parallelSort(IndexedNode::compareTo);
-					CompressUtil.writeCompressedSection(objects, stream, il);
+					CompressUtil.writeCompressedSectionDupe(
+							ExceptionIterator.of(objects.iterator()),
+							objects.size(),
+							sections.getObjectPath(),
+							il,
+							(tripleId, mappedId) -> {
+								VByte.encode(mappingObject, tripleId);
+								VByte.encode(mappingObject, mappedId);
+							});
+				} finally {
+					listener.notifyProgress(100, "section completed" + sections.root.getFileName().toString());
 				}
-			} finally {
-				subjects.clear();
-				predicates.clear();
-				objects.clear();
-				listener.notifyProgress(100, "section completed" + sections.root.getFileName().toString());
+			} catch (IOException e) {
+				throw new KWayMerger.KWayMergerException(e);
 			}
-		} catch (IOException e) {
-			throw new KWayMerger.KWayMergerException(e);
 		}
 	}
 
@@ -305,11 +326,18 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 		private final CloseSuppressPath p;
 		private final CloseSuppressPath o;
 
+		private final CloseSuppressPath mappingFileS;
+		private final CloseSuppressPath mappingFileP;
+		private final CloseSuppressPath mappingFileO;
+
 		private TripleFile(CloseSuppressPath root, boolean mkdir) throws IOException {
 			this.root = root;
 			this.s = root.resolve("subject");
 			this.p = root.resolve("predicate");
 			this.o = root.resolve("object");
+			this.mappingFileS = root.resolve("mappingFileSubject");
+			this.mappingFileP = root.resolve("mappingFilePredicate");
+			this.mappingFileO = root.resolve("mappingFileObject");
 
 			root.closeWithDeleteRecurse();
 			if (mkdir) {
@@ -327,29 +355,26 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 		}
 
 		/**
-		 * @return open a write stream to the subject file
+		 * @return open a write stream to the mapping file
 		 * @throws IOException can't open the stream
 		 */
-		public OutputStream openWSubject() throws IOException {
-			return s.openOutputStream(bufferSize);
+		public OutputStream openWMappingSubject() throws IOException {
+			return mappingFileS.openOutputStream(bufferSize);
 		}
-
 		/**
-		 * @return open a write stream to the predicate file
+		 * @return open a write stream to the mapping file
 		 * @throws IOException can't open the stream
 		 */
-		public OutputStream openWPredicate() throws IOException {
-			return p.openOutputStream(bufferSize);
+		public OutputStream openWMappingPredicate() throws IOException {
+			return mappingFileP.openOutputStream(bufferSize);
 		}
-
 		/**
-		 * @return open a write stream to the object file
+		 * @return open a write stream to the mapping file
 		 * @throws IOException can't open the stream
 		 */
-		public OutputStream openWObject() throws IOException {
-			return o.openOutputStream(bufferSize);
+		public OutputStream openWMappingObject() throws IOException {
+			return mappingFileO.openOutputStream(bufferSize);
 		}
-
 		/**
 		 * @return open a read stream to the subject file
 		 * @throws IOException can't open the stream
@@ -374,6 +399,27 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 			return o.openInputStream(bufferSize);
 		}
 
+		/**
+		 * @return open a write stream to the mapping file
+		 * @throws IOException can't open the stream
+		 */
+		public InputStream openRMappingSubject() throws IOException {
+			return mappingFileS.openInputStream(bufferSize);
+		}
+		/**
+		 * @return open a write stream to the mapping file
+		 * @throws IOException can't open the stream
+		 */
+		public InputStream openRMappingPredicate() throws IOException {
+			return mappingFileP.openInputStream(bufferSize);
+		}
+		/**
+		 * @return open a write stream to the mapping file
+		 * @throws IOException can't open the stream
+		 */
+		public InputStream openRMappingObject() throws IOException {
+			return mappingFileO.openInputStream(bufferSize);
+		}
 		/**
 		 * @return the path to the subject file
 		 */
@@ -418,18 +464,18 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 		}
 
 		private void computeSubject(List<TripleFile> triples, boolean async) throws IOException {
-			computeSection(triples, "subject", 0, 33, this::openWSubject, TripleFile::openRSubject, TripleFile::getSubjectPath, async);
+			computeSection(triples, "subject", 0, 33, s, TripleFile::openRSubject, this::openWMappingSubject, t -> t.mappingFileS, TripleFile::getSubjectPath, async);
 		}
 
 		private void computePredicate(List<TripleFile> triples, boolean async) throws IOException {
-			computeSection(triples, "predicate", 33, 66, this::openWPredicate, TripleFile::openRPredicate, TripleFile::getPredicatePath, async);
+			computeSection(triples, "predicate", 33, 66, p, TripleFile::openRPredicate, this::openWMappingPredicate, t -> t.mappingFileP, TripleFile::getPredicatePath, async);
 		}
 
 		private void computeObject(List<TripleFile> triples, boolean async) throws IOException {
-			computeSection(triples, "object", 66, 100, this::openWObject, TripleFile::openRObject, TripleFile::getObjectPath, async);
+			computeSection(triples, "object", 66, 100, o, TripleFile::openRObject, this::openWMappingObject, t -> t.mappingFileO, TripleFile::getObjectPath, async);
 		}
 
-		private void computeSection(List<TripleFile> triples, String section, int start, int end, ExceptionSupplier<OutputStream, IOException> openW, ExceptionFunction<TripleFile, InputStream, IOException> openR, Function<TripleFile, Closeable> fileDelete, boolean async) throws IOException {
+		private void computeSection(List<TripleFile> triples, String section, int start, int end, Path writePath, ExceptionFunction<TripleFile, InputStream, IOException> openR, ExceptionSupplier<OutputStream, IOException> openMappingW, ExceptionFunction<TripleFile, Path, IOException> openMappingR, Function<TripleFile, Closeable> fileDelete, boolean async) throws IOException {
 			IntermediateListener il = new IntermediateListener(listener);
 			if (async) {
 				listener.registerThread(Thread.currentThread().getName());
@@ -452,8 +498,23 @@ public class SectionCompressor implements KWayMerger.KWayMergerImpl<TripleString
 				}
 
 				// section
-				try (OutputStream output = openW.get()) { // IndexNodeDeltaMergeExceptionIterator
-					CompressUtil.writeCompressedSection(CompressNodeMergeIterator.buildOfTree(readers), size, output, il);
+				// IndexNodeDeltaMergeExceptionIterator
+				try (OutputStream mappingStream = openMappingW.get()) {
+					// write first the duplicated element
+					CompressUtil.writeCompressedSectionDupe(
+							CompressNodeMergeIterator.buildOfTree(readers),
+							size,
+							writePath,
+							il,
+							(tripleId, mappedId) -> {
+								VByte.encode(mappingStream, tripleId);
+								VByte.encode(mappingStream, mappedId);
+							}
+					);
+
+					for (TripleFile triple : triples) {
+						Files.copy(openMappingR.apply(triple), mappingStream);
+					}
 				}
 			} finally {
 				if (async) {

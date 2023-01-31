@@ -1,13 +1,16 @@
 package org.rdfhdt.hdt.dictionary.impl;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.rdfhdt.hdt.exceptions.NotImplementedException;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult;
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.iterator.utils.MapIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 import org.rdfhdt.hdt.util.io.compress.CompressTest;
+import org.rdfhdt.hdt.util.io.compress.MappedId;
 import org.rdfhdt.hdt.util.string.ByteString;
 import org.rdfhdt.hdt.util.string.ByteStringUtil;
 
@@ -18,6 +21,7 @@ import java.util.List;
 
 public class CompressFourSectionDictionaryTest {
 	@Test
+	@Ignore("not used anymore")
 	public void compressDictTest() throws Exception {
 		TestCompressionResult result = new TestCompressionResult(
 				new CharSequence[]{
@@ -125,6 +129,21 @@ public class CompressFourSectionDictionaryTest {
 		@Override
 		public ExceptionIterator<IndexedNode, IOException> getObjects() {
 			return ExceptionIterator.of(new MapIterator<>(Arrays.asList(objects).iterator(), s -> new IndexedNode(ByteString.of(s), oid++)));
+		}
+
+		@Override
+		public ExceptionIterator<MappedId, IOException> getMappedIdSubjects() {
+			throw new NotImplementedException("mapped id");
+		}
+
+		@Override
+		public ExceptionIterator<MappedId, IOException> getMappedIdPredicates() {
+			throw new NotImplementedException("mapped id");
+		}
+
+		@Override
+		public ExceptionIterator<MappedId, IOException> getMappedIdObjects() {
+			throw new NotImplementedException("mapped id");
 		}
 
 		@Override

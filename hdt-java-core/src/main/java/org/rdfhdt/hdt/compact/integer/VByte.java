@@ -85,6 +85,26 @@ public class VByte {
 		}
 	}
 
+	/**
+	 * encode a value with padding to have a fixed size,
+	 * it will take more memory than a plain or log int, but is read like a VByte
+	 * @param out stream
+	 * @param value value
+	 * @throws IOException io exception
+	 */
+	public static void encodePadded(OutputStream out, long value) throws IOException {
+		if (value < 0) {
+			throw new IllegalArgumentException("Only can encode VByte of positive values");
+		}
+		int shift = 0;
+		while (shift < 50) {
+			out.write((int)(value & 127));
+			value >>>= 7;
+			shift += 7;
+		}
+		out.write((int)(value | 0x80));
+	}
+
 	public static void encode(OutputStream out, long value) throws IOException {
 		if(value<0) {
 			throw new IllegalArgumentException("Only can encode VByte of positive values");
@@ -95,21 +115,55 @@ public class VByte {
 		}
 		out.write((int)(value|0x80));
 	}
-	
+
 	public static long decode(InputStream in) throws IOException {
 		long out = 0;
 		int shift=0;
 		long readbyte = in.read(); if(readbyte==-1) throw new EOFException();
-		
+
 		while( (readbyte & 0x80)==0) {
 			if(shift>=50) { // We read more bytes than required to load the max long
 				throw new IllegalArgumentException("Read more bytes than required to load the max long");
 			}
-			
+
 			out |= (readbyte & 127) << shift;
-			
+
 			readbyte = in.read(); if(readbyte==-1) throw new EOFException();
-			
+
+			shift+=7;
+		}
+		out |= (readbyte & 127) << shift;
+		return out;
+	}
+
+	/**
+	 * same as {@link #decode(InputStream)}, but will return -1 if the first byte read is an EOF
+	 * @param in input
+	 * @param noEofFirst return -1 instead of an {@link EOFException} if the end of the stream
+	 * @return -1 or decoded long
+	 * @throws IOException read exception
+	 */
+	public static long decode(InputStream in, boolean noEofFirst) throws IOException {
+		long out = 0;
+		int shift=0;
+		long readbyte = in.read();
+
+		if(readbyte == -1) {
+			if (noEofFirst) {
+				return readbyte;
+			}
+			throw new EOFException();
+		};
+
+		while( (readbyte & 0x80)==0) {
+			if(shift>=50) { // We read more bytes than required to load the max long
+				throw new IllegalArgumentException("Read more bytes than required to load the max long");
+			}
+
+			out |= (readbyte & 127) << shift;
+
+			readbyte = in.read(); if(readbyte==-1) throw new EOFException();
+
 			shift+=7;
 		}
 		out |= (readbyte & 127) << shift;

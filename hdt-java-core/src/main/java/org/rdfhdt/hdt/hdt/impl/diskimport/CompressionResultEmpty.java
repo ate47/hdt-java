@@ -2,6 +2,7 @@ package org.rdfhdt.hdt.hdt.impl.diskimport;
 
 import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
+import org.rdfhdt.hdt.util.io.compress.MappedId;
 
 import java.io.IOException;
 
@@ -23,6 +24,21 @@ public class CompressionResultEmpty implements CompressionResult {
 
     @Override
     public ExceptionIterator<IndexedNode, IOException> getObjects() {
+        return ExceptionIterator.empty();
+    }
+
+    @Override
+    public ExceptionIterator<MappedId, IOException> getMappedIdSubjects() {
+        return ExceptionIterator.empty();
+    }
+
+    @Override
+    public ExceptionIterator<MappedId, IOException> getMappedIdPredicates() {
+        return ExceptionIterator.empty();
+    }
+
+    @Override
+    public ExceptionIterator<MappedId, IOException> getMappedIdObjects() {
         return ExceptionIterator.empty();
     }
 

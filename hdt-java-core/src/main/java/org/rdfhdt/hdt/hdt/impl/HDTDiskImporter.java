@@ -6,7 +6,6 @@ import org.rdfhdt.hdt.dictionary.impl.CompressFourSectionDictionary;
 import org.rdfhdt.hdt.enums.TripleComponentOrder;
 import org.rdfhdt.hdt.exceptions.ParserException;
 import org.rdfhdt.hdt.hdt.HDT;
-import org.rdfhdt.hdt.hdt.HDTManager;
 import org.rdfhdt.hdt.hdt.HDTVocabulary;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressTripleMapper;
 import org.rdfhdt.hdt.hdt.impl.diskimport.CompressionResult;
@@ -24,7 +23,6 @@ import org.rdfhdt.hdt.triples.TriplesPrivate;
 import org.rdfhdt.hdt.util.BitUtil;
 import org.rdfhdt.hdt.util.Profiler;
 import org.rdfhdt.hdt.util.StringUtil;
-import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 import org.rdfhdt.hdt.util.concurrent.KWayMerger;
 import org.rdfhdt.hdt.util.io.CloseSuppressPath;
 import org.rdfhdt.hdt.util.io.compress.MapCompressTripleMerger;
@@ -194,30 +192,41 @@ public class HDTDiskImporter implements Closeable {
 					source,
 					listener,
 					bufferSize,
-					chunkSize, 1 << ways,
+					chunkSize * workers, 1 << ways,
 					hdtFormat.getBoolean("debug.disk.slow.stream2")).compress(workers, compressMode);
 		} catch (KWayMerger.KWayMergerException | InterruptedException e) {
 			throw new ParserException(e);
 		}
-		profiler.popSection();
-
-		listener.unregisterAllThreads();
-		listener.notifyProgress(20, "Create sections and triple mapping");
-
-		profiler.pushSection("dictionary write");
-		// create sections and triple mapping
+		CompressTripleMapper mapper;
 		DictionaryPrivate dictionary = hdt.getDictionary();
-		CompressTripleMapper mapper = new CompressTripleMapper(basePath, compressionResult.getTripleCount(), chunkSize);
-		try (CompressFourSectionDictionary modifiableDictionary = new CompressFourSectionDictionary(compressionResult, mapper, listener, debugHDTBuilding)) {
-			dictionary.loadAsync(modifiableDictionary, listener);
-		} catch (InterruptedException e) {
-			throw new ParserException(e);
-		}
-		profiler.popSection();
+		try {
+			profiler.popSection();
 
-		// complete the mapper with the shared count and delete compression data
-		compressionResult.delete();
-		rawSize = compressionResult.getRawSize();
+			listener.unregisterAllThreads();
+			listener.notifyProgress(20, "Create sections and triple mapping");
+
+			profiler.pushSection("dictionary write");
+			// create sections and triple mapping
+			mapper = new CompressTripleMapper(basePath, compressionResult.getTripleCount(), chunkSize);
+			try (CompressFourSectionDictionary modifiableDictionary = new CompressFourSectionDictionary(compressionResult, mapper, listener, debugHDTBuilding)) {
+				dictionary.loadAsync(modifiableDictionary, listener);
+			} catch (InterruptedException e) {
+				throw new ParserException(e);
+			}
+			profiler.popSection();
+
+			compressionResult.getMappedIdSubjects()
+					.forEachRemaining(mappedId -> mapper.cloneSubject(mappedId.getTripleId(), mappedId.getMappedId()));
+			compressionResult.getMappedIdPredicates()
+					.forEachRemaining(mappedId -> mapper.clonePredicate(mappedId.getTripleId(), mappedId.getMappedId()));
+			compressionResult.getMappedIdObjects()
+					.forEachRemaining(mappedId -> mapper.cloneObject(mappedId.getTripleId(), mappedId.getMappedId()));
+
+			// complete the mapper with the shared count and delete compression data
+			rawSize = compressionResult.getRawSize();
+		} finally {
+			compressionResult.delete();
+		}
 		mapper.setShared(dictionary.getNshared());
 
 		this.dict = true;

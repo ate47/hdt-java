@@ -46,4 +46,30 @@ public class VByteTest {
 		System.out.println("VAL: "+val);
 		fail("Exception not thrown");
 	}
+
+	@Test
+	public void paddedTest() throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+		long[] values = {
+				42,
+				256,
+				4096,
+				12345,
+				1234567
+		};
+
+		for (long v : values) {
+			VByte.encodePadded(out, v);
+		}
+
+		byte[] buf = out.toByteArray();
+		assertEquals("variable lenght!", 0, buf.length % values.length);
+		assertEquals("not the right amount of bits!", Long.BYTES + 1, buf.length / values.length);
+		ByteArrayInputStream in = new ByteArrayInputStream(buf);
+
+		for (long v : values) {
+			assertEquals(v, VByte.decode(in));
+		}
+	}
 }

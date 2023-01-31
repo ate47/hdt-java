@@ -199,7 +199,7 @@ public class DictionaryFactory {
 			case "":
 			case HDTOptionsKeys.DICTIONARY_TYPE_VALUE_FOUR_SECTION:
 			case HDTOptionsKeys.DICTIONARY_TYPE_VALUE_FOUR_SECTION_BIG:
-				return new SectionCompressor(baseFileName, source, listener, bufferSize, chunkSize, k, debugSleepKwayDict);
+				return new SectionCompressor(baseFileName, source, listener, bufferSize, chunkSize, k);
 			case HDTOptionsKeys.DICTIONARY_TYPE_VALUE_MULTI_OBJECTS:
 				return new MultiSectionSectionCompressor(baseFileName, source, listener, bufferSize, chunkSize, k, debugSleepKwayDict);
 			default:

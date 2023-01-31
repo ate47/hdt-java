@@ -4,6 +4,8 @@ import org.rdfhdt.hdt.iterator.utils.ExceptionIterator;
 import org.rdfhdt.hdt.triples.IndexedNode;
 import org.rdfhdt.hdt.util.io.IOUtil;
 import org.rdfhdt.hdt.util.io.compress.CompressNodeReader;
+import org.rdfhdt.hdt.util.io.compress.MappedElementReader;
+import org.rdfhdt.hdt.util.io.compress.MappedId;
 
 import java.io.IOException;
 
@@ -17,6 +19,10 @@ public class CompressionResultFile implements CompressionResult {
 	private final CompressNodeReader subjects;
 	private final CompressNodeReader predicates;
 	private final CompressNodeReader objects;
+	private final MappedElementReader mappedSubjects;
+	private final MappedElementReader mappedPredicates;
+	private final MappedElementReader mappedObjects;
+	private boolean closed;
 	private final SectionCompressor.TripleFile sections;
 
 	public CompressionResultFile(long tripleCount, long ntRawSize, SectionCompressor.TripleFile sections) throws IOException {
@@ -25,6 +31,10 @@ public class CompressionResultFile implements CompressionResult {
 		this.subjects = new CompressNodeReader(sections.openRSubject());
 		this.predicates = new CompressNodeReader(sections.openRPredicate());
 		this.objects = new CompressNodeReader(sections.openRObject());
+		this.mappedSubjects = new MappedElementReader(sections.openRMappingSubject());
+		this.mappedPredicates = new MappedElementReader(sections.openRMappingPredicate());
+		this.mappedObjects = new MappedElementReader(sections.openRMappingObject());
+
 		this.sections = sections;
 	}
 
@@ -49,7 +59,23 @@ public class CompressionResultFile implements CompressionResult {
 	}
 
 	@Override
+	public ExceptionIterator<MappedId, IOException> getMappedIdSubjects() {
+		return mappedSubjects;
+	}
+
+	@Override
+	public ExceptionIterator<MappedId, IOException> getMappedIdPredicates() {
+		return mappedPredicates;
+	}
+
+	@Override
+	public ExceptionIterator<MappedId, IOException> getMappedIdObjects() {
+		return mappedObjects;
+	}
+
+	@Override
 	public void delete() throws IOException {
+		close();
 		sections.delete();
 	}
 
@@ -80,10 +106,17 @@ public class CompressionResultFile implements CompressionResult {
 
 	@Override
 	public void close() throws IOException {
+		if (closed) {
+			return;
+		}
+		closed = true;
 		IOUtil.closeAll(
 				objects,
 				predicates,
-				subjects
+				subjects,
+				mappedSubjects,
+				mappedPredicates,
+				mappedObjects
 		);
 	}
 }

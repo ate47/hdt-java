@@ -43,6 +43,15 @@ public class IndexedNode implements Comparable<IndexedNode>, Cloneable {
 		return node.compareTo(o.node);
 	}
 
+	@Override
+	public boolean equals(Object obj) {
+		return !(obj instanceof IndexedNode) ||  compareTo((IndexedNode) obj) == 0;
+	}
+
+	@Override
+	public String toString() {
+		return "IndexedNode{" + node + "}@" + getIndex();
+	}
 
 	@Override
 	public IndexedNode clone() {

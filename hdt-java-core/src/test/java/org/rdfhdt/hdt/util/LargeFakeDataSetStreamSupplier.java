@@ -15,7 +15,6 @@ import org.rdfhdt.hdt.util.concurrent.ExceptionThread;
 import org.rdfhdt.hdt.util.string.ByteStringUtil;
 
 import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -35,7 +34,7 @@ import java.util.zip.GZIPOutputStream;
  *
  * @author Antoine Willerval
  */
-public class LargeFakeDataSetStreamSupplier {
+public class LargeFakeDataSetStreamSupplier implements Iterable<TripleString> {
 
 	private static final Charset DEFAULT_CHARSET = ByteStringUtil.STRING_ENCODING;
 
@@ -331,6 +330,11 @@ public class LargeFakeDataSetStreamSupplier {
 			// no type/language node
 			return text;
 		}
+	}
+
+	@Override
+	public Iterator<TripleString> iterator() {
+		return createTripleStringStream();
 	}
 
 	private class FakeStatementIterator implements Iterator<TripleString> {

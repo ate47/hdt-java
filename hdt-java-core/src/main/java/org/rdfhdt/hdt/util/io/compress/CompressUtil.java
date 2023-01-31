@@ -9,6 +9,7 @@ import org.rdfhdt.hdt.util.string.ReplazableString;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -64,6 +65,33 @@ public class CompressUtil {
 		writer.writeCRC();
 		if (listener != null) {
 			listener.notifyProgress(100, "section completed " + size + " nodes");
+		}
+	}
+
+	/**
+	 * write a sorted iterator of indexed node
+	 *
+	 * @param it       iterator to write
+	 * @param size     size of the iterator
+	 * @param file     the output file
+	 * @param listener the listener to see the progress
+	 * @throws IOException writing exception
+	 */
+	public static void writeCompressedSectionDupe(ExceptionIterator<IndexedNode, IOException> it, long size, Path file, ProgressListener listener, DupeCompressNodeWriter.DupeCallback callback) throws IOException {
+		try (DupeCompressNodeWriter writer = new DupeCompressNodeWriter(file, callback)) {
+			long element = 0;
+			long block = size < 10 ? 1 : size / 10;
+			while (it.hasNext()) {
+				if (listener != null && element % block == 0) {
+					listener.notifyProgress((float) (10 * element / block), "write section " + element + "/" + size);
+				}
+				writer.appendNode(it.next());
+				element++;
+			}
+			it.forEachRemaining(writer::appendNode);
+			if (listener != null) {
+				listener.notifyProgress(100, "section completed " + size + " nodes");
+			}
 		}
 	}
 

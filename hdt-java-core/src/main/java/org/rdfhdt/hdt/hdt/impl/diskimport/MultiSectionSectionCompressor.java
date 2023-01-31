@@ -13,7 +13,7 @@ import org.rdfhdt.hdt.util.string.CompactString;
  */
 public class MultiSectionSectionCompressor extends SectionCompressor {
 	public MultiSectionSectionCompressor(CloseSuppressPath baseFileName, AsyncIteratorFetcher<TripleString> source, MultiThreadListener listener, int bufferSize, long chunkSize, int k, boolean debugSleepKwayDict) {
-		super(baseFileName, source, listener, bufferSize, chunkSize, k, debugSleepKwayDict);
+		super(baseFileName, source, listener, bufferSize, chunkSize, k);
 	}
 
 	@Override
