@@ -62,13 +62,18 @@ public class TempHDTImporterOnePass implements TempHDTImporter {
 
 		@Override
         public void processTriple(TripleString triple, long pos) {
-			triples.insert(
-					dict.insert(triple.getSubject(), TripleComponentRole.SUBJECT),
-					dict.insert(triple.getPredicate(), TripleComponentRole.PREDICATE),
-					dict.insert(triple.getObject(), TripleComponentRole.OBJECT)
-			);
+			long s = dict.insert(triple.getSubject(), TripleComponentRole.SUBJECT);
+			long p = dict.insert(triple.getPredicate(), TripleComponentRole.PREDICATE);
+			long o = dict.insert(triple.getObject(), TripleComponentRole.OBJECT);
+			if (dict.supportGraphs()) {
+				long g = dict.insert(triple.getGraph(), TripleComponentRole.GRAPH);
+				triples.insert(s, p, o, g);
+				size+=triple.getSubject().length()+triple.getPredicate().length()+triple.getObject().length()+triple.getGraph().length()+5;
+			} else {
+				triples.insert(s, p, o);
+				size+=triple.getSubject().length()+triple.getPredicate().length()+triple.getObject().length()+triple.getGraph().length()+4;  // Spaces and final dot
+			}
 			num++;
-			size+=triple.getSubject().length()+triple.getPredicate().length()+triple.getObject().length()+4;  // Spaces and final dot
 			ListenerUtil.notifyCond(listener, "Loaded "+num+" triples", num, 0, 100);
 		}
 	}
@@ -82,7 +87,7 @@ public class TempHDTImporterOnePass implements TempHDTImporter {
 	@Override
 	public TempHDT loadFromRDF(HDTOptions specs, String filename, String baseUri, RDFNotation notation, ProgressListener listener)
 			throws ParserException {
-		
+
 		RDFParserCallback parser = RDFParserFactory.getParserCallback(notation, spec);
 
 		// Create Modifiable Instance
@@ -118,13 +123,23 @@ public class TempHDTImporterOnePass implements TempHDTImporter {
         long size=0;
         while(iterator.hasNext()) {
         	TripleString triple = iterator.next();
-        	triples.insert(
-        			dictionary.insert(triple.getSubject(), TripleComponentRole.SUBJECT),
-        			dictionary.insert(triple.getPredicate(), TripleComponentRole.PREDICATE),
-        			dictionary.insert(triple.getObject(), TripleComponentRole.OBJECT)
-        			);
+			if (dictionary.supportGraphs()) {
+				triples.insert(
+						dictionary.insert(triple.getSubject(), TripleComponentRole.SUBJECT),
+						dictionary.insert(triple.getPredicate(), TripleComponentRole.PREDICATE),
+						dictionary.insert(triple.getObject(), TripleComponentRole.OBJECT),
+						dictionary.insert(triple.getGraph(), TripleComponentRole.GRAPH)
+				);
+				size+=triple.getSubject().length()+triple.getPredicate().length()+triple.getObject().length()+triple.getGraph().length()+5;  // Spaces and final dot
+			} else {
+				triples.insert(
+						dictionary.insert(triple.getSubject(), TripleComponentRole.SUBJECT),
+						dictionary.insert(triple.getPredicate(), TripleComponentRole.PREDICATE),
+						dictionary.insert(triple.getObject(), TripleComponentRole.OBJECT)
+				);
+				size+=triple.getSubject().length()+triple.getPredicate().length()+triple.getObject().length()+4;  // Spaces and final dot
+			}
         	num++;
-			size+=triple.getSubject().length()+triple.getPredicate().length()+triple.getObject().length()+4;  // Spaces and final dot
         	ListenerUtil.notifyCond(listener, "Loaded "+num+" triples", num, 0, 100);
         }
         dictionary.endProcessing();
